@@ -1,112 +1,150 @@
 import os
-from typing import Dict, List
+import re
+import sys
+import yfinance as yf
 
-from .decision_agent import get_investment_recommendation
+# Ensure UTF-8 console output on Windows
+if hasattr(sys.stdout, "reconfigure"):
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 
 try:
     from groq import Groq
-
     HAS_GROQ = True
 except ImportError:
     HAS_GROQ = False
 
-# Session Memory Store (In-memory storage for conversation history)
-# Format: { "session_id": [ {"role": "user"/"assistant", "content": "..."}, ... ] }
-CHAT_SESSIONS: Dict[str, List[Dict[str, str]]] = {}
+# ---------------------------------------------------------------------------
+# Institutional system prompt for Gemini-grade structured financial insights
+# ---------------------------------------------------------------------------
+SYSTEM_PROMPT = """\
+You are Robo — an elite quantitative financial intelligence assistant embedded \
+inside an institutional trading platform. You deliver responses that are \
+beautifully structured, insightful, and polished — exactly like Google Gemini \
+or Bloomberg Intelligence.
+
+Formatting Guidelines:
+1. Start with a clear, bold **Sentiment Verdict** or headline answer (e.g. **Status: Neutral to Mildly Bearish (Short-Term)**).
+2. Structure your analysis using clean markdown sections with ### headers:
+   - ### 1. Sentiment Verdict
+   - ### 2. Key Catalysts & Technical Signals (with bullet points for catalysts, technicals, flow)
+   - ### 3. Strategic Outlook / Key Levels (support, resistance, actionable setups)
+3. Use **bolding** strategically on key price levels, metrics, percentages, and signals.
+4. Use markdown tables where appropriate to summarize metrics, key levels, or scenarios.
+5. Provide actionable insights for traders/investors (Key Support, Key Resistance, Strategy).
+6. Maintain an institutional, analytical tone — objective, crisp, and direct.
+7. Do NOT use dollar ($) signs for Indian equities (use INR, ₹, or plain numbers).
+8. Never output raw code or JSON unless explicitly requested.\
+"""
+
+PRIMARY_MODEL = "qwen/qwen3.8-27b"
+FALLBACK_MODEL = "openai/gpt-oss-120b"
+
+
+def _fetch_market_context(symbol: str) -> str:
+    """Fetch live spot price and recent performance for context injection."""
+    if not symbol:
+        return "Scope: Global Market Query"
+
+    try:
+        t = yf.Ticker(symbol)
+        last_price = None
+        prev_close = None
+
+        # Try fast_info first (fastest and cleanest)
+        try:
+            fast = t.fast_info
+            last_price = getattr(fast, "last_price", None)
+            prev_close = getattr(fast, "previous_close", None)
+        except Exception:
+            pass
+
+        # Fallback to history if fast_info is incomplete
+        if not last_price:
+            hist = t.history(period="2d")
+            if not hist.empty:
+                last_price = float(hist["Close"].iloc[-1])
+                prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_price
+
+        if last_price:
+            chg_pct = round(((last_price - prev_close) / prev_close) * 100, 2) if prev_close else 0.0
+            direction = "+" if chg_pct >= 0 else ""
+            currency = "INR" if (".NS" in symbol or ".BO" in symbol) else ""
+            return (
+                f"Selected Ticker: {symbol} | Spot Price: {round(float(last_price), 2)} {currency} | "
+                f"Day Change: {direction}{chg_pct}%"
+            )
+
+    except Exception as e:
+        print(f"⚠️ [Robo] Context warning for {symbol}: {e}")
+
+    return f"Selected Ticker: {symbol}"
 
 
 def get_chat_response(
-    symbol: str, message: str, session_id: str = "default_session"
+    symbol: str = "", message: str = "", session_id: str = "default"
 ) -> str:
-    """Financial AI Assistant Chat Handler with Conversational Memory &
+    """Core AI chat function — returns polished, markdown-formatted financial intelligence."""
+    if not message:
+        return "Hello! How can I assist you with stock or market analysis today?"
 
-    Multi-Agent Context Grounding.
-    """
-    symbol = symbol.strip().upper()
-    api_key = os.getenv("GROQ_API_KEY")
+    api_key = os.getenv(
+        "GROQ_API_KEY",
+        ""
+    )
+    if not api_key:
+        return "⚠️ GROQ_API_KEY is missing from configuration."
 
-    # 1. Initialize or fetch session history
-    if session_id not in CHAT_SESSIONS:
-        CHAT_SESSIONS[session_id] = []
-    session_history = CHAT_SESSIONS[session_id]
+    if not HAS_GROQ:
+        return "⚠️ Groq SDK is not installed (`pip install groq`)."
 
-    # 2. Fetch live stock analysis payload from Orchestrator
-    try:
-        analysis = get_investment_recommendation(symbol)
-        trade_plan = analysis.get("trade_plan", {})
-        quant = analysis.get("quant_summary", {})
-        fundamental = analysis.get("fundamental_summary", {})
-        company_profile = (
-            fundamental.get("company_profile", {}).get("company_origin", "")
-        )
-    except Exception as e:
-        print(f"Error gathering stock context for chatbot: {e}")
-        analysis, trade_plan, quant, fundamental, company_profile = (
-            {},
-            {},
-            {},
-            {},
-            "",
-        )
-
-    # 3. System Prompt Grounding the AI in calculated facts
-    system_prompt = f"""
-You are an expert Financial AI Analyst on the Agentic Quant & Financial Intelligence Platform. You are answering questions about the stock: {symbol}.
-
-STRICT DATA CONTEXT:
-- Spot Price: ${quant.get('current_price', 'N/A')}
-- Signal: {trade_plan.get('signal', 'N/A')} (Win Probability: {trade_plan.get('win_probability_pct', 'N/A')}%)
-- Stop Loss: ${trade_plan.get('stop_loss', 'N/A')}
-- Segmented Targets: {trade_plan.get('targets', [])}
-- Breakeven Range: {trade_plan.get('breakeven_range', 'N/A')}
-- Technical Indicators (RSI, MAs): {quant.get('technical_indicators', {})}
-- Financials (YoY Growth, Net Debt, PE): {fundamental.get('financials', {})}
-- Shareholding (FII, DII, Promoter): {fundamental.get('shareholding', {})}
-- RAG Company Context: {company_profile[:400]}...
-
-RULES:
-1. Answer concisely, professionally, and ground all claims in the data provided above.
-2. Maintain conversation continuity using prior messages in the chat history.
-3. Do not invent ungrounded financial figures.
-"""
-
-    # Fallback if Groq is unavailable
-    if not HAS_GROQ or not api_key:
-        first_target = (
-            trade_plan.get("targets", [{}])[0].get("target_price", "N/A")
-            if trade_plan.get("targets")
-            else "N/A"
-        )
-        fallback_msg = (
-            f"Bot Response ({symbol}): Signal is {trade_plan.get('signal')} with"
-            f" Target 1 at ${first_target}. (Configure GROQ_API_KEY in .env for"
-            " interactive AI chat)."
-        )
-        session_history.append({"role": "user", "content": message})
-        session_history.append({"role": "assistant", "content": fallback_msg})
-        return fallback_msg
+    context_text = _fetch_market_context(symbol)
+    print(f"\n🤖 [Robo] Query: '{message[:80]}' | Context: {context_text}")
 
     try:
         client = Groq(api_key=api_key)
+        user_content = f"Market Context: {context_text}\n\nUser Question: {message}"
 
-        # Build prompt stack: System Prompt + Rolling Conversation History (Last 10 turns) + New Message
-        messages = [{"role": "system", "content": system_prompt}]
-        messages.extend(session_history[-10:])
-        messages.append({"role": "user", "content": message})
+        # Attempt with Primary model (qwen/qwen3.8-27b), fallback to gpt-oss-120b
+        completion = None
+        for model_choice in [PRIMARY_MODEL, FALLBACK_MODEL]:
+            try:
+                print(f"⚡ [Robo] Generating response via {model_choice}...")
+                completion = client.chat.completions.create(
+                    model=model_choice,
+                    messages=[
+                        {"role": "system", "content": SYSTEM_PROMPT},
+                        {"role": "user", "content": user_content},
+                    ],
+                    temperature=0.3,
+                    max_tokens=1024,
+                )
+                if completion and completion.choices:
+                    break
+            except Exception as model_err:
+                print(f"⚠️ [Robo] Error with {model_choice}: {model_err}. Trying fallback...")
 
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=messages,
-            temperature=0.3,
-            max_tokens=300,
-        )
-        reply = response.choices[0].message.content.strip()
+        if not completion or not completion.choices:
+            return "🤖 I am currently experiencing elevated load. Please try again in a few moments."
 
-        # Update session memory
-        session_history.append({"role": "user", "content": message})
-        session_history.append({"role": "assistant", "content": reply})
-        return reply
+        raw_reply = completion.choices[0].message.content or ""
+        # Clean out any <think> tags if present
+        clean_reply = re.sub(r"<think>.*?</think>", "", raw_reply, flags=re.DOTALL).strip()
+        final_reply = clean_reply if clean_reply else raw_reply.strip()
+
+        print(f"✅ [Robo] Response generated ({len(final_reply)} chars).")
+        return final_reply
 
     except Exception as e:
-        print(f"Chatbot API Error: {e}")
-        return f"I encountered an error processing your query for {symbol}: {str(e)}"
+        print(f"❌ [Robo Error] {e}")
+        return f"🤖 I encountered an issue connecting to the AI model: {str(e)}"
+
+
+if __name__ == "__main__":
+    # Test execution
+    res = get_chat_response(
+        symbol="RELIANCE.NS", message="is reliance tending to sell side sentiment"
+    )
+    print("\n" + res)

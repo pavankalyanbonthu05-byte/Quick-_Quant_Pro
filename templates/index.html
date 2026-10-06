@@ -3,9 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quant & Financial Intelligence Workstation</title>
-
-    <!-- Tailwind CSS CDN -->
+    <title>Quant & Financial Intelligence</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
         tailwind.config = {
@@ -21,10 +19,9 @@
             }
         }
     </script>
-
-    <!-- Font Awesome & Plotly -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.plot.ly/plotly-2.26.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 
     <style>
@@ -35,9 +32,7 @@
             backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
-        .robo-lean {
-            animation: roboFloat 4s ease-in-out infinite;
-        }
+        .robo-lean { animation: roboFloat 4s ease-in-out infinite; }
         @keyframes roboFloat {
             0%, 100% { transform: translateY(0px) rotate(0deg); }
             50% { transform: translateY(-6px) rotate(-3deg); }
@@ -45,66 +40,136 @@
         .custom-scrollbar::-webkit-scrollbar { width: 5px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: #080b11; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+
+        /* ── Robo AI Chat Markdown Styling ── */
+        .robo-msg { line-height: 1.65; color: #cbd5e1; font-size: 0.73rem; }
+        .robo-msg p { margin-bottom: 0.5rem; }
+        .robo-msg p:last-child { margin-bottom: 0; }
+        .robo-msg h3, .robo-msg h4 {
+            font-weight: 700;
+            color: #60a5fa;
+            margin: 0.75rem 0 0.35rem 0;
+            font-size: 0.76rem;
+            letter-spacing: 0.025em;
+            text-transform: uppercase;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+            padding-bottom: 2px;
+        }
+        .robo-msg strong { color: #f8fafc; font-weight: 600; }
+        .robo-msg em { color: #94a3b8; font-style: italic; }
+        .robo-msg ul, .robo-msg ol {
+            margin: 0.35rem 0 0.5rem 1.1rem;
+            list-style: disc;
+        }
+        .robo-msg ul li, .robo-msg ol li { margin-bottom: 0.25rem; }
+        .robo-msg code {
+            background: #1e293b;
+            color: #38bdf8;
+            padding: 1px 5px;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.85em;
+        }
+        .robo-msg pre {
+            background: #0b1120;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            padding: 8px 10px;
+            overflow-x: auto;
+            margin: 0.45rem 0;
+        }
+        .robo-msg pre code { background: transparent; padding: 0; color: #e2e8f0; }
+        .robo-msg table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 0.6rem 0;
+            font-size: 0.7rem;
+        }
+        .robo-msg th {
+            background: rgba(30, 41, 59, 0.95);
+            color: #93c5fd;
+            padding: 6px 8px;
+            text-align: left;
+            border: 1px solid #334155;
+            font-weight: 600;
+        }
+        .robo-msg td {
+            padding: 5px 8px;
+            border: 1px solid #1e293b;
+            color: #cbd5e1;
+        }
+        .robo-msg tr:nth-child(even) td { background: rgba(15, 23, 42, 0.5); }
+        .robo-msg blockquote {
+            border-left: 3px solid #3b82f6;
+            padding-left: 8px;
+            color: #94a3b8;
+            margin: 0.4rem 0;
+        }
+        /* Animated typing dots */
+        .typing-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #3b82f6;
+            animation: typingBounce 1.2s infinite ease-in-out;
+        }
+        .typing-dot:nth-child(2) { animation-delay: 0.2s; }
+        .typing-dot:nth-child(3) { animation-delay: 0.4s; }
+        @keyframes typingBounce {
+            0%, 80%, 100% { transform: scale(0.6); opacity: 0.35; }
+            40% { transform: scale(1); opacity: 1; }
+        }
     </style>
 </head>
-<body class="bg-[#080b11] text-slate-100 min-h-screen custom-scrollbar pb-12">
+<body class="bg-[#080b11] text-slate-100 min-h-screen pb-12">
 
-    <!-- 1. Top Global Indices Ticker Bar -->
-    <div class="bg-slate-950/90 border-b border-slate-800/80 px-4 py-2">
-        <div class="max-w-7xl mx-auto flex items-center justify-between overflow-x-auto gap-4 text-xs font-mono">
-            <span class="text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0">
-                <i class="fa-solid fa-globe text-blue-400"></i> Global Indices:
-            </span>
-            <div class="flex items-center gap-6 shrink-0">
-                {% for item in macro_data %}
-                <div class="flex items-center gap-2 bg-slate-900/80 px-3 py-1 rounded-lg border border-slate-800">
-                    <span class="text-slate-300 font-semibold">{{ item.name }}</span>
-                    <span class="text-white">${{ "%.2f"|format(item.price) }}</span>
-                    <span class="{{ 'text-emerald-400' if item.change_pct >= 0 else 'text-red-400' }} font-bold">
-                        {{ "+" if item.change_pct >= 0 else "" }}{{ "%.2f"|format(item.change_pct) }}%
-                    </span>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-
-    <!-- 2. Sticky Header with TradingView-Style Live Search -->
+    <!-- Header Navigation Bar -->
     <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-40 backdrop-blur-md">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-            <div class="flex items-center gap-3">
-                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/20">
-                    <i class="fa-solid fa-chart-line"></i>
+            <a href="/" class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-blue-500/20">
+                    <i class="fa-solid fa-bolt"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-base text-white leading-tight flex items-center gap-2">
-                        Quant & Financial Intelligence
-                        <span class="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] px-2 py-0.5 rounded-full font-mono">Llama-3.3 70B</span>
+                    <h1 class="font-bold text-lg text-white leading-tight tracking-wide flex items-center gap-2">
+                        Quick Quant Pro
                     </h1>
+                    <p class="text-[11px] text-slate-400 font-medium tracking-tight">Quant and financial intelligence platform</p>
                 </div>
-            </div>
+            </a>
 
-            <!-- TradingView Style Universal Search Bar -->
-            <div class="relative w-80 sm:w-96">
-                <form action="/" method="POST" id="search-form" class="relative">
-                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
-                    <input type="text" name="symbol" id="tv-search-input" value="{{ ticker }}" placeholder="Search Ticker (AAPL, RELIANCE, BTC-USD, GOLD)..." autocomplete="off"
-                        oninput="onSearchInput(this.value)"
-                        class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pl-9 pr-10 py-2 text-xs font-mono text-white placeholder-slate-500 uppercase tracking-wider outline-none transition-all">
-                    <button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1">
-                        <i class="fa-solid fa-arrow-right text-xs"></i>
-                    </button>
-                </form>
+            <!-- Right Controls: Universal Search Bar & AI Trading Bot Button -->
+            <div class="flex items-center gap-3">
+                <!-- AI Trading Bot Launcher Button -->
+                <button onclick="toggleBotModal()" id="nav-bot-btn" class="relative group px-3.5 py-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-blue-500/25 border border-blue-400/30 transition-all active:scale-95">
+                    <span class="relative flex h-2 w-2">
+                        <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-400"></span>
+                    </span>
+                    <i class="fa-solid fa-robot text-[13px]"></i>
+                    <span>AI Trading Bot</span>
+                    <span class="bg-blue-950/60 text-blue-200 border border-blue-400/20 text-[9px] px-1.5 py-0.5 rounded-full font-mono">100k Paper</span>
+                </button>
 
-                <!-- TradingView Style Live Autocomplete Dropdown -->
-                <div id="tv-search-dropdown" class="hidden absolute top-12 left-0 w-full glass-panel rounded-xl shadow-2xl border border-slate-800 z-50 overflow-hidden divide-y divide-slate-800/80 max-h-80 overflow-y-auto custom-scrollbar">
-                    <!-- Dynamic JS Search Results -->
+                <!-- Universal Search Bar -->
+                <div class="relative w-64 sm:w-80">
+                    <form action="/" method="POST" id="search-form" class="relative">
+                        <i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                        <input type="text" name="symbol" id="tv-search-input" value="{{ ticker if ticker else '' }}" placeholder="Search Ticker (AAPL, RELIANCE.NS, GOLD)..." autocomplete="off"
+                            oninput="onSearchInput(this.value)"
+                            class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pl-9 pr-10 py-2 text-xs font-mono text-white placeholder-slate-500 uppercase tracking-wider outline-none transition-all">
+                        <button type="submit" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white p-1">
+                            <i class="fa-solid fa-arrow-right text-xs"></i>
+                        </button>
+                    </form>
+
+                    <div id="tv-search-dropdown" class="hidden absolute top-12 left-0 w-full glass-panel rounded-xl shadow-2xl border border-slate-800 z-50 overflow-hidden divide-y divide-slate-800/80 max-h-80 overflow-y-auto custom-scrollbar"></div>
                 </div>
             </div>
         </div>
     </header>
 
-    <!-- Main Content Container -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 space-y-8">
 
         {% if error_message %}
@@ -114,13 +179,89 @@
         </div>
         {% endif %}
 
-        {% if trade_analysis %}
+        <!-- DEFAULT LANDING PAGE VIEW -->
+        {% if not trade_analysis %}
+
+        <!-- Section 1: Global Market Indices Ribbon -->
+        <section id="global-indices" class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-3">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-globe text-blue-400"></i> Global Market Overview
+                </h2>
+                <span class="text-[10px] text-slate-400 font-mono flex items-center gap-1.5">
+                    <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> Auto-Updating (Sub-5s)
+                </span>
+            </div>
+            <div id="macro-cards-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 font-mono">
+                {% for item in macro_data %}
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 flex flex-col justify-between" id="macro-card-{{ loop.index0 }}">
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs text-slate-400 font-sans font-medium">{{ item.name }}</span>
+                        {% if item.is_live %}
+                        <span data-live-badge class="flex items-center gap-1 text-[9px] text-emerald-400 font-bold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>LIVE</span>
+                        {% else %}
+                        <span data-live-badge class="flex items-center gap-1 text-[9px] text-rose-400 font-bold"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>CLOSED</span>
+                        {% endif %}
+                    </div>
+                    <div class="text-lg font-bold text-white mt-2 macro-price">{{ "%.2f"|format(item.price) }}</div>
+                    <div class="text-xs font-bold {{ 'text-emerald-400' if item.change_pct >= 0 else 'text-red-400' }} mt-1 macro-change">
+                        {{ "+" if item.change_pct >= 0 else "" }}{{ "%.2f"|format(item.change_points) }} ({{ "+" if item.change_pct >= 0 else "" }}{{ "%.2f"|format(item.change_pct) }}%)
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Section 2: Important Market News of the Day -->
+        <section id="market-news" class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-newspaper text-emerald-400"></i> Top Market-Moving News
+            </h2>
+            <div class="space-y-3">
+                {% for news in global_news %}
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors">
+                    <a href="{{ news.link }}" target="_blank" class="text-sm font-bold text-white hover:text-blue-400">
+                        {{ news.title }}
+                    </a>
+                    <p class="text-xs text-slate-400 mt-1.5 leading-relaxed">{{ news.summary }}</p>
+                    <span class="text-[10px] text-blue-400 font-mono mt-2 block">{{ news.publisher }}</span>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-500">Fetching global market news...</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- Section 3: Platform Purpose & Architecture -->
+        <section id="platform-purpose" class="glass-panel p-6 rounded-2xl border border-slate-800 space-y-4">
+            <h2 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                <i class="fa-solid fa-diagram-project text-purple-400"></i> Platform Architecture & Purpose
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <span class="font-bold text-blue-400 block"><i class="fa-solid fa-brain mr-1"></i> Worker 1: Quant Neural Engine</span>
+                    <p class="text-slate-300 leading-relaxed">Computes 20 MA, 200 MA, RSI, daily point/% changes, and projects 30-day forecast trajectories.</p>
+                </div>
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <span class="font-bold text-emerald-400 block"><i class="fa-solid fa-database mr-1"></i> Worker 2: RAG + Auto Ingestion</span>
+                    <p class="text-slate-300 leading-relaxed">Queries ChromaDB vector store. If missing, triggers live web search and auto-ingests data into vector storage.</p>
+                </div>
+                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 space-y-2">
+                    <span class="font-bold text-purple-400 block"><i class="fa-solid fa-shield-halved mr-1"></i> Orchestrator LLM Engine</span>
+                    <p class="text-slate-300 leading-relaxed">Combines technicals and fundamentals to produce BUY/SELL/NO CALL signals, targets T1-T4, and risk levels.</p>
+                </div>
+            </div>
+        </section>
+
+        {% else %}
+
+        <!-- DETAILED STOCK ANALYSIS VIEW -->
         {% set tp = trade_analysis.trade_plan %}
         {% set quant = trade_analysis.quant_summary %}
         {% set fund = trade_analysis.fundamental_summary %}
         {% set prof = fund.company_profile %}
 
-        <!-- Stock Header Spot Card -->
+        <!-- Stock Spot Header -->
         <section id="overview" class="glass-panel rounded-2xl p-5 flex flex-wrap items-center justify-between gap-4">
             <div class="flex items-center gap-4">
                 <div class="w-12 h-12 bg-blue-600/20 border border-blue-500/30 rounded-xl flex items-center justify-center font-mono font-bold text-xl text-blue-400">
@@ -129,26 +270,34 @@
                 <div>
                     <h2 class="text-xl font-bold text-white flex items-center gap-2">
                         {{ ticker }}
-                        <span class="text-xs bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono border border-slate-700">Live Spot</span>
+                        <span id="stock-live-badge" class="flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-mono border font-semibold bg-slate-800 text-slate-400 border-slate-700">
+                            <span class="w-2 h-2 rounded-full bg-slate-500"></span>Checking...
+                        </span>
                     </h2>
-                    <p class="text-xs text-slate-400">As of: {{ quant.get('as_of_date', '') }}</p>
+                    <p class="text-xs text-slate-400">AI Quantitative Spot & Signal Analysis · Auto-Updating Real-Time</p>
                 </div>
             </div>
             <div class="flex items-center gap-6 font-mono">
                 <div>
                     <span class="text-[10px] text-slate-400 uppercase block">Spot Price</span>
-                    <span class="text-xl font-bold text-white">${{ "%.2f"|format(quant.get('current_price', 0)) }}</span>
+                    <span id="stock-spot-price" class="text-xl font-bold text-white">{{ "%.2f"|format(quant.get('current_price', 0)) }}</span>
                 </div>
                 <div>
-                    <span class="text-[10px] text-slate-400 uppercase block">30D Forecast Return</span>
-                    <span class="text-xl font-bold {{ 'text-emerald-400' if quant.get('forecasted_return_pct', 0) >= 0 else 'text-red-400' }}">
+                    <span class="text-[10px] text-slate-400 uppercase block">Day Change</span>
+                    <span id="stock-day-change" class="text-sm font-bold {{ 'text-emerald-400' if quant.get('change_pct', 0) >= 0 else 'text-red-400' }}">
+                        {{ "+" if quant.get('change_pct', 0) >= 0 else "" }}{{ "%.2f"|format(quant.get('change_points', 0)) }} ({{ "+" if quant.get('change_pct', 0) >= 0 else "" }}{{ "%.2f"|format(quant.get('change_pct', 0)) }}%)
+                    </span>
+                </div>
+                <div>
+                    <span class="text-[10px] text-slate-400 uppercase block">30D Forecast</span>
+                    <span class="text-sm font-bold {{ 'text-emerald-400' if quant.get('forecasted_return_pct', 0) >= 0 else 'text-red-400' }}">
                         {{ "+" if quant.get('forecasted_return_pct', 0) >= 0 else "" }}{{ "%.2f"|format(quant.get('forecasted_return_pct', 0)) }}%
                     </span>
                 </div>
             </div>
         </section>
 
-        <!-- AI Trade Signal Hero Banner -->
+        <!-- AI Recommendation Banner -->
         <section id="recommendation" class="glass-panel rounded-2xl p-6 border {{ 'border-emerald-500/30 bg-emerald-950/10' if tp.signal == 'BUY' else ('border-red-500/30 bg-red-950/10' if tp.signal == 'SELL' else 'border-amber-500/30 bg-amber-950/10') }}">
             <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
                 <div class="lg:col-span-4 space-y-3">
@@ -164,12 +313,11 @@
                             <div class="h-full rounded-full bg-gradient-to-r from-emerald-500 to-teal-400" style="width: {{ tp.win_probability_pct }}%"></div>
                         </div>
                     </div>
-
                     {% if tp.signal == 'BUY' or tp.signal == 'SELL' %}
                     <div class="flex gap-3 text-xs font-mono pt-1">
                         <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 flex-1">
                             <span class="text-slate-400 block text-[10px]">Stop Loss</span>
-                            <span class="font-bold text-red-400">${{ "%.2f"|format(tp.stop_loss) if tp.stop_loss else 'N/A' }}</span>
+                            <span class="font-bold text-red-400">{{ "%.2f"|format(tp.stop_loss) if tp.stop_loss else 'N/A' }}</span>
                         </div>
                         <div class="bg-slate-900/80 p-2.5 rounded-lg border border-slate-800 flex-1">
                             <span class="text-slate-400 block text-[10px]">Risk : Reward</span>
@@ -179,11 +327,10 @@
                     {% else %}
                     <div class="bg-slate-900/80 p-2.5 rounded-lg border border-amber-500/30 text-xs font-mono">
                         <span class="text-amber-400 block text-[10px]">Breakeven Range (No Trade Zone)</span>
-                        <span class="font-bold text-white">${{ "%.2f"|format(tp.breakeven_range[0]) if tp.breakeven_range else 'N/A' }} — ${{ "%.2f"|format(tp.breakeven_range[1]) if tp.breakeven_range else 'N/A' }}</span>
+                        <span class="font-bold text-white">±{{ "%.2f"|format(tp.breakeven_range) if tp.breakeven_range else 'N/A' }}</span>
                     </div>
                     {% endif %}
                 </div>
-
                 <div class="lg:col-span-8 bg-slate-900/80 p-4 rounded-xl border border-slate-800/80">
                     <span class="text-xs font-bold text-blue-400 uppercase tracking-wider block mb-1">
                         <i class="fa-solid fa-brain mr-1"></i> Groq Llama-3.3-70B AI Trade Rationale
@@ -193,11 +340,11 @@
             </div>
         </section>
 
-        <!-- Segmented Profit Targets Cards -->
+        <!-- Segmented Profit Targets -->
         {% if tp.targets %}
         <section id="targets">
             <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <i class="fa-solid fa-bullseye text-blue-400"></i> Segmented Probability Profit Targets
+                <i class="fa-solid fa-bullseye text-blue-400"></i> Segmented Profit Targets
             </h3>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 {% for tgt in tp.targets %}
@@ -208,55 +355,314 @@
                             {{ tgt.probability_tier }}
                         </span>
                     </div>
-                    <div class="text-xl font-bold font-mono text-white">${{ "%.2f"|format(tgt.target_price) }}</div>
-                    <div class="text-[11px] text-emerald-400 font-mono mt-1">+${{ "%.2f"|format(tgt.points_gain) }} (+{{ "%.2f"|format(tgt.return_pct) }}%)</div>
+                    <div class="text-xl font-bold font-mono text-white">{{ "%.2f"|format(tgt.target_price) }}</div>
+                    <div class="text-[11px] text-emerald-400 font-mono mt-1">+{{ "%.2f"|format(tgt.points_gain) }} (+{{ "%.2f"|format(tgt.return_pct) }}%)</div>
                 </div>
                 {% endfor %}
             </div>
         </section>
         {% endif %}
 
-        <!-- 30-Day LSTM Trajectory Chart -->
-        <section id="chart" class="glass-panel p-5 rounded-2xl">
-            <h3 class="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-                <i class="fa-solid fa-chart-area text-indigo-400"></i> 30-Day Neural Price Forecast
-            </h3>
-            <div id="lstm-chart" class="w-full h-72"></div>
-        </section>
+        {% set sh = fund.get('shareholders', {}) %}
+        {% set fin_res = fund.get('financial_results', {}) %}
+        {% set yoy_qoq = fund.get('yoy_qoq_comparison', {}) %}
+        {% set perf = quant.get('performance_metrics', {}) %}
+        {% set hist_recs = quant.get('history_records', []) %}
 
-        <!-- Stock Specific News & RAG History -->
-        <section id="news-history" class="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            <!-- Stock Specific News Feed -->
-            <div class="lg:col-span-6 glass-panel p-5 rounded-2xl space-y-3">
-                <h3 class="text-sm font-semibold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-newspaper text-emerald-400"></i> Stock News & Market Catalysts
-                </h3>
-                <div class="space-y-3">
-                    {% for item in stock_news %}
-                    <div class="bg-slate-900/80 p-3 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors">
-                        <a href="{{ item.link }}" target="_blank" class="text-xs font-bold text-white hover:text-blue-400 line-clamp-1">
-                            {{ item.title }}
-                        </a>
-                        <p class="text-[11px] text-slate-400 line-clamp-2 mt-1">{{ item.summary }}</p>
-                        <span class="text-[9px] text-blue-400 font-mono mt-1 block">{{ item.publisher }}</span>
+        <!-- 1. Detailed Visualization Chart (Candlestick / Area + 30D Forecast + 20MA & 200MA) -->
+        <section id="chart" class="glass-panel p-5 rounded-2xl space-y-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-sm">
+                        <i class="fa-solid fa-chart-line"></i>
                     </div>
-                    {% else %}
-                    <p class="text-xs text-slate-500">No recent market news found for {{ ticker }}.</p>
-                    {% endfor %}
+                    <div>
+                        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+                            <span>Interactive Quantitative Price Chart & 30-Day Neural Forecast</span>
+                            <span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20">20 MA · 200 MA</span>
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Institutional-grade technical view connecting spot history with neural projection</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 text-xs font-mono">
+                    <button id="chart-mode-line" onclick="setChartType('line')" class="px-3 py-1 rounded-lg bg-blue-600 text-white font-semibold transition-all">Line</button>
+                    <button id="chart-mode-candle" onclick="setChartType('candlestick')" class="px-3 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-all">Candles</button>
                 </div>
             </div>
+            <div id="lstm-chart" class="w-full h-84 rounded-xl overflow-hidden"></div>
+        </section>
 
-            <!-- ChromaDB RAG Vector History Context -->
-            <div class="lg:col-span-6 glass-panel p-5 rounded-2xl space-y-3">
-                <h3 class="text-sm font-semibold text-white flex items-center gap-2">
-                    <i class="fa-solid fa-database text-purple-400"></i> ChromaDB Vector RAG Profile
-                </h3>
-                <div class="bg-slate-900/80 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed space-y-2">
-                    <p><strong>Company Profile:</strong> {{ prof.get('company_origin', 'Company background retrieved via ChromaDB vector store.') }}</p>
-                    <div class="pt-2 border-t border-slate-800 font-mono text-[10px] flex justify-between text-slate-400">
-                        <span>Status: Vector Store Indexed</span>
-                        <span>Source: Local ChromaDB Collection</span>
+        <!-- 2. RSI Indicator Sub-Chart Beside Shareholder Pie Chart (Side-by-Side balanced layout) -->
+        <section id="rsi-and-shareholders" class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+            <!-- Left: TradingView-Style RSI Sub-Chart -->
+            <div class="lg:col-span-7 glass-panel p-5 rounded-2xl space-y-3 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-purple-400 animate-pulse"></span>
+                        <h3 class="text-xs font-bold text-white uppercase tracking-wider">
+                            RSI (14) Relative Strength Index · TradingView Style
+                        </h3>
                     </div>
+                    <span class="text-xs font-mono font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-300 border border-purple-500/30">
+                        Current RSI: {{ quant.get('technical_indicators', {}).get('rsi_14', 50) }}
+                    </span>
+                </div>
+                <p class="text-[11px] text-slate-400">Overbought benchmark at 70 (red line), Oversold benchmark at 30 (green line) with shaded neutral oscillator band.</p>
+                <div id="rsi-chart" class="w-full h-56 rounded-xl overflow-hidden"></div>
+            </div>
+
+            <!-- Right: Stock Shareholder Breakdown Pie Chart (FII, DII, Retailers) -->
+            <div class="lg:col-span-5 glass-panel p-5 rounded-2xl space-y-3 flex flex-col justify-between">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-cyan-400"></span>
+                        <h3 class="text-xs font-bold text-white uppercase tracking-wider">
+                            Shareholding Pattern
+                        </h3>
+                    </div>
+                    <span class="text-[10px] font-mono text-slate-400 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">FII · DII · Retail</span>
+                </div>
+                <div id="shareholders-pie" class="w-full h-56 rounded-xl overflow-hidden"></div>
+                <div class="grid grid-cols-3 gap-2 font-mono text-center text-xs pt-1 border-t border-slate-800">
+                    <div class="p-1.5 rounded-lg bg-blue-500/10 border border-blue-500/20">
+                        <span class="text-[10px] text-blue-400 uppercase font-sans block">FII</span>
+                        <span class="font-bold text-white">{{ sh.get('fii_pct', 24.5) }}%</span>
+                    </div>
+                    <div class="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+                        <span class="text-[10px] text-emerald-400 uppercase font-sans block">DII</span>
+                        <span class="font-bold text-white">{{ sh.get('dii_pct', 19.5) }}%</span>
+                    </div>
+                    <div class="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                        <span class="text-[10px] text-amber-400 uppercase font-sans block">Retail / Other</span>
+                        <span class="font-bold text-white">{{ sh.get('retail_promoter_pct', 56.0) }}%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Stock Performance (Full Width Stack) -->
+        <section id="stock-performance" class="glass-panel p-5 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-gauge-high text-cyan-400"></i> Stock Performance Return Horizon
+                </h3>
+                <span class="text-[11px] text-slate-400 font-mono">Trailing Cumulative Returns</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 font-mono">
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 text-center">
+                    <span class="text-[10px] text-slate-400 uppercase block font-sans">1 Week</span>
+                    <span class="text-base font-bold {{ 'text-emerald-400' if perf.get('1W', 0) >= 0 else 'text-rose-400' }}">
+                        {{ "+" if perf.get('1W', 0) >= 0 else "" }}{{ "%.2f"|format(perf.get('1W', 0)) }}%
+                    </span>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 text-center">
+                    <span class="text-[10px] text-slate-400 uppercase block font-sans">1 Month</span>
+                    <span class="text-base font-bold {{ 'text-emerald-400' if perf.get('1M', 0) >= 0 else 'text-rose-400' }}">
+                        {{ "+" if perf.get('1M', 0) >= 0 else "" }}{{ "%.2f"|format(perf.get('1M', 0)) }}%
+                    </span>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 text-center">
+                    <span class="text-[10px] text-slate-400 uppercase block font-sans">3 Months</span>
+                    <span class="text-base font-bold {{ 'text-emerald-400' if perf.get('3M', 0) >= 0 else 'text-rose-400' }}">
+                        {{ "+" if perf.get('3M', 0) >= 0 else "" }}{{ "%.2f"|format(perf.get('3M', 0)) }}%
+                    </span>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 text-center">
+                    <span class="text-[10px] text-slate-400 uppercase block font-sans">6 Months</span>
+                    <span class="text-base font-bold {{ 'text-emerald-400' if perf.get('6M', 0) >= 0 else 'text-rose-400' }}">
+                        {{ "+" if perf.get('6M', 0) >= 0 else "" }}{{ "%.2f"|format(perf.get('6M', 0)) }}%
+                    </span>
+                </div>
+                <div class="bg-slate-900/90 p-3.5 rounded-xl border border-slate-800 text-center">
+                    <span class="text-[10px] text-slate-400 uppercase block font-sans">1 Year</span>
+                    <span class="text-base font-bold {{ 'text-emerald-400' if perf.get('1Y', 0) >= 0 else 'text-rose-400' }}">
+                        {{ "+" if perf.get('1Y', 0) >= 0 else "" }}{{ "%.2f"|format(perf.get('1Y', 0)) }}%
+                    </span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 4. Stock Financial Results & Fundamental Health (Full Width Stack) -->
+        <section id="stock-results" class="glass-panel p-5 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-file-invoice-dollar text-emerald-400"></i> Stock Financial Results & Valuation Multiples
+                </h3>
+                <span class="text-[11px] text-slate-400 font-mono">Securities Filing Data</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 font-mono">
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-sans block">P/E Ratio</span>
+                    <span class="text-sm font-bold text-white">{{ "%.2f"|format(fin_res.get('pe_ratio', 15)) }}</span>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-sans block">EPS (Earnings/Sh)</span>
+                    <span class="text-sm font-bold text-emerald-400">{{ "%.2f"|format(fin_res.get('eps', 0)) }}</span>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-sans block">Operating Margin</span>
+                    <span class="text-sm font-bold text-blue-400">{{ "%.2f"|format(fin_res.get('operating_margin_pct', 0)) }}%</span>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-sans block">Beta (Volatility)</span>
+                    <span class="text-sm font-bold text-amber-400">{{ "%.2f"|format(fin_res.get('beta', 1)) }}</span>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-sans block">52-Week High</span>
+                    <span class="text-sm font-bold text-white">{{ "%.2f"|format(fin_res.get('52w_high', 0)) }}</span>
+                </div>
+                <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800">
+                    <span class="text-[10px] text-slate-400 uppercase font-sans block">52-Week Low</span>
+                    <span class="text-sm font-bold text-white">{{ "%.2f"|format(fin_res.get('52w_low', 0)) }}</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. Stock YoY & QoQ Comparison (Full Width Stack) -->
+        <section id="stock-comparison" class="glass-panel p-5 rounded-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-arrows-split-up-and-left text-purple-400"></i> YoY (Year-over-Year) & QoQ (Quarter-over-Quarter) Comparison
+                </h3>
+                <span class="text-[11px] text-slate-400 font-mono">Financial Filing Comparative Metrics</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 font-mono">
+                <!-- YoY Card -->
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span class="text-xs font-bold text-white uppercase font-sans flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-blue-400"></span> YoY Annual Growth
+                        </span>
+                        <span class="text-[10px] text-slate-400">Latest Year vs Prior Year</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 uppercase block font-sans">YoY Revenue Growth</span>
+                            <span class="text-base font-bold {{ 'text-emerald-400' if yoy_qoq.get('yoy_revenue_pct', 0) >= 0 else 'text-rose-400' }}">
+                                {{ "+" if yoy_qoq.get('yoy_revenue_pct', 0) >= 0 else "" }}{{ "%.2f"|format(yoy_qoq.get('yoy_revenue_pct', 0)) }}%
+                            </span>
+                        </div>
+                        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 uppercase block font-sans">YoY Net Income Growth</span>
+                            <span class="text-base font-bold {{ 'text-emerald-400' if yoy_qoq.get('yoy_net_income_pct', 0) >= 0 else 'text-rose-400' }}">
+                                {{ "+" if yoy_qoq.get('yoy_net_income_pct', 0) >= 0 else "" }}{{ "%.2f"|format(yoy_qoq.get('yoy_net_income_pct', 0)) }}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- QoQ Card -->
+                <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                        <span class="text-xs font-bold text-white uppercase font-sans flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-indigo-400"></span> QoQ Quarterly Growth
+                        </span>
+                        <span class="text-[10px] text-slate-400">{{ yoy_qoq.get('latest_quarter', 'Q Recent') }} vs {{ yoy_qoq.get('prev_quarter', 'Q Prior') }}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 uppercase block font-sans">QoQ Revenue Growth</span>
+                            <span class="text-base font-bold {{ 'text-emerald-400' if yoy_qoq.get('qoq_revenue_pct', 0) >= 0 else 'text-rose-400' }}">
+                                {{ "+" if yoy_qoq.get('qoq_revenue_pct', 0) >= 0 else "" }}{{ "%.2f"|format(yoy_qoq.get('qoq_revenue_pct', 0)) }}%
+                            </span>
+                        </div>
+                        <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800/80">
+                            <span class="text-[10px] text-slate-400 uppercase block font-sans">QoQ Net Income Growth</span>
+                            <span class="text-base font-bold {{ 'text-emerald-400' if yoy_qoq.get('qoq_net_income_pct', 0) >= 0 else 'text-rose-400' }}">
+                                {{ "+" if yoy_qoq.get('qoq_net_income_pct', 0) >= 0 else "" }}{{ "%.2f"|format(yoy_qoq.get('qoq_net_income_pct', 0)) }}%
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. Stock News (Full Width Stack) -->
+        <section id="stock-news-section" class="glass-panel p-5 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+                <h3 class="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-newspaper text-emerald-400"></i> Prioritized Stock News & Filings
+                </h3>
+                <span class="text-[11px] text-slate-400 font-mono">LLM-Ranked Market Catalyst Impact</span>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                {% for item in stock_news %}
+                <div class="bg-slate-900/80 p-3.5 rounded-xl border border-slate-800 hover:border-slate-700 transition-colors space-y-1.5">
+                    <a href="{{ item.link }}" target="_blank" class="text-xs font-bold text-white hover:text-blue-400 line-clamp-1 flex items-center justify-between gap-2">
+                        <span>{{ item.title }}</span>
+                        <i class="fa-solid fa-arrow-up-right-from-square text-[10px] text-slate-500"></i>
+                    </a>
+                    <p class="text-[11px] text-slate-400 line-clamp-2 leading-relaxed">{{ item.summary }}</p>
+                    <div class="flex items-center justify-between pt-1 text-[9px] text-slate-500 font-mono">
+                        <span class="text-blue-400 font-semibold">{{ item.publisher }}</span>
+                        <span>Catalyst Verified</span>
+                    </div>
+                </div>
+                {% else %}
+                <p class="text-xs text-slate-500">No specific headlines currently found for {{ ticker }}.</p>
+                {% endfor %}
+            </div>
+        </section>
+
+        <!-- 7. Stock History & ChromaDB Vector RAG Profile (Full Width Stack) -->
+        <section id="stock-history-section" class="glass-panel p-5 rounded-2xl space-y-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 text-sm">
+                        <i class="fa-solid fa-database"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider">
+                            Stock History & ChromaDB Vector RAG Memory
+                        </h3>
+                        <p class="text-[11px] text-slate-400">Injected directly into local vector store for instantaneous zero-latency semantic recall</p>
+                    </div>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[10px] font-mono font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>RAG Injected
+                </span>
+            </div>
+
+            <!-- ChromaDB Vector Summary Card -->
+            <div class="bg-slate-900/90 p-4 rounded-xl border border-slate-800 text-xs text-slate-300 leading-relaxed space-y-2">
+                <span class="text-[10px] uppercase font-bold text-purple-400 block tracking-wider font-mono">Vector Storage Knowledge Extract</span>
+                <p><strong>Corporate Origin & Sector Profile:</strong> {{ prof.get('company_origin', 'Company background retrieved via ChromaDB vector store.') }}</p>
+            </div>
+
+            <!-- 10-Day Historical Price & Volume Ledger Table -->
+            <div class="space-y-2">
+                <span class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-table-list text-blue-400"></i> Recent Daily Price & Volume History
+                </span>
+                <div class="overflow-x-auto rounded-xl border border-slate-800 bg-slate-950/70">
+                    <table class="w-full text-left text-xs font-mono">
+                        <thead class="bg-slate-900/90 text-[10px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-sans">
+                            <tr>
+                                <th class="p-3">Date</th>
+                                <th class="p-3">Open</th>
+                                <th class="p-3">High</th>
+                                <th class="p-3">Low</th>
+                                <th class="p-3">Close / Spot</th>
+                                <th class="p-3 text-right">Volume</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-slate-800/60">
+                            {% for rec in hist_recs %}
+                            <tr class="hover:bg-slate-800/40 transition-colors">
+                                <td class="p-3 font-semibold text-slate-300">{{ rec.date }}</td>
+                                <td class="p-3 text-slate-400">{{ "%.2f"|format(rec.open) }}</td>
+                                <td class="p-3 text-emerald-400">{{ "%.2f"|format(rec.high) }}</td>
+                                <td class="p-3 text-rose-400">{{ "%.2f"|format(rec.low) }}</td>
+                                <td class="p-3 font-bold text-white">{{ "%.2f"|format(rec.close) }}</td>
+                                <td class="p-3 text-right text-slate-400">{{ rec.volume }}</td>
+                            </tr>
+                            {% else %}
+                            <tr>
+                                <td colspan="6" class="p-4 text-center text-slate-500">Historical ledger records loading...</td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </section>
@@ -265,9 +671,8 @@
 
     </main>
 
-    <!-- 3. Sidebar Robo AI Assistant Widget -->
+    <!-- Sidebar Leaning Robo AI Assistant -->
     <div class="fixed bottom-6 right-6 z-50 flex items-end gap-3">
-        <!-- Robot Leaning Avatar Button -->
         <div class="robo-lean cursor-pointer flex flex-col items-center" onclick="toggleChatWindow()">
             <div class="bg-slate-900 border border-blue-500/40 text-blue-400 text-[10px] font-mono px-2 py-0.5 rounded-full mb-1 shadow-md">
                 Robo AI Agent Looking...
@@ -279,67 +684,434 @@
             </div>
         </div>
 
-        <!-- Sliding Chat Window -->
-        <div id="chat-window" class="hidden w-96 h-[480px] glass-panel rounded-2xl shadow-2xl border border-slate-800 flex flex-col overflow-hidden">
-            <div class="bg-slate-900 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <i class="fa-solid fa-robot text-blue-400"></i>
-                    <h4 class="font-bold text-xs text-white">Robo Financial Assistant</h4>
+        <div id="chat-window" class="hidden w-[420px] h-[520px] glass-panel rounded-2xl shadow-2xl border border-slate-700/60 flex flex-col overflow-hidden">
+            <!-- Chat header -->
+            <div class="bg-slate-900/95 px-4 py-3 border-b border-slate-800 flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-7 h-7 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white text-[10px] shadow">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-[11px] text-white leading-none">Robo Financial Intelligence</h4>
+                        <span class="text-[9px] text-emerald-400 flex items-center gap-1 mt-0.5">
+                            <span class="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse inline-block"></span>
+                            Online · Institutional Quant
+                        </span>
+                    </div>
                 </div>
-                <button onclick="toggleChatWindow()" class="text-slate-400 hover:text-white text-xs">
+                <button onclick="toggleChatWindow()" class="text-slate-500 hover:text-white text-sm transition-colors">
                     <i class="fa-solid fa-xmark"></i>
                 </button>
             </div>
-            <div id="chat-messages" class="flex-1 p-3 overflow-y-auto space-y-2 text-xs custom-scrollbar">
-                <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-xl text-slate-300">
-                    🤖 Hello! Ask me anything about <strong>{{ ticker }}</strong> profit targets, risk levels, or company history!
+            <!-- Messages area -->
+            <div id="chat-messages" class="flex-1 p-3.5 overflow-y-auto custom-scrollbar space-y-1">
+                <!-- Welcome bubble -->
+                <div class="flex justify-start items-end gap-2 mb-3">
+                    <div class="w-6 h-6 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white text-[9px] flex-shrink-0 shadow">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-700/60 px-3.5 py-2.5 rounded-2xl rounded-tl-sm text-[0.72rem] text-slate-300 max-w-[88%] robo-msg shadow">
+                        <strong class="text-blue-300">Hey, I'm Robo</strong> 👋<br>
+                        Ask me anything about <strong>{{ ticker if ticker else 'global markets' }}</strong> — sentiment, key levels, catalysts, or trading strategy.
+                    </div>
                 </div>
             </div>
-            <form onsubmit="sendChatMessage(event)" class="p-2.5 bg-slate-950 border-t border-slate-800 flex gap-2">
-                <input type="text" id="chat-input" placeholder="Ask Robo Agent..."
-                    class="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-blue-500">
-                <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white rounded-lg px-3 py-1.5 text-xs">
+            <!-- Input bar -->
+            <form onsubmit="sendChatMessage(event)" class="p-3 bg-slate-950/90 border-t border-slate-800 flex gap-2 items-center">
+                <input type="text" id="chat-input"
+                    placeholder="Ask Robo anything..."
+                    class="flex-1 bg-slate-900 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-500 outline-none transition-all">
+                <button type="submit"
+                    class="bg-blue-600 hover:bg-blue-500 active:scale-95 text-white rounded-xl px-3.5 py-2 text-xs transition-all shadow">
                     <i class="fa-solid fa-paper-plane"></i>
                 </button>
             </form>
         </div>
     </div>
 
-    <!-- JavaScript Handlers -->
+    <!-- ===================================================================== -->
+    <!-- AI TRADING BOT (ALGO TRADING) MODAL -->
+    <!-- ===================================================================== -->
+    <div id="algo-bot-modal" class="hidden fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-3 sm:p-6 overflow-y-auto">
+        <div class="w-full max-w-5xl bg-slate-900 border border-slate-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]">
+            
+            <!-- Modal Header -->
+            <div class="px-6 py-4 bg-slate-950/80 border-b border-slate-800 flex items-center justify-between gap-4">
+                <div class="flex items-center gap-3">
+                    <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-600 flex items-center justify-center text-white text-base shadow-lg shadow-blue-500/20">
+                        <i class="fa-solid fa-microchip"></i>
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h3 class="font-bold text-base text-white">Quick Quant Pro · AI Algo Bot</h3>
+                            <span id="bot-status-badge" class="bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full font-mono border border-slate-700">Offline</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400">Autonomous multi-asset quantitative trading engine</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-2">
+                    <button onclick="toggleBotModal()" class="text-slate-400 hover:text-white p-2 rounded-lg hover:bg-slate-800/60 text-sm transition-colors">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Modal Body Container -->
+            <div class="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar" id="bot-modal-content">
+
+                <!-- 1. AUTHENTICATION VIEW (Shown if not logged in) -->
+                <div id="bot-auth-view" class="max-w-md mx-auto py-8 space-y-6">
+                    <div class="text-center space-y-2">
+                        <div class="w-14 h-14 mx-auto rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-purple-600 flex items-center justify-center text-white text-2xl shadow-xl shadow-blue-500/25">
+                            <i class="fa-solid fa-user-lock"></i>
+                        </div>
+                        <h4 class="text-lg font-bold text-white">Personal Bot Authentication</h4>
+                        <p class="text-xs text-slate-400 leading-relaxed">
+                            Every trader is provisioned an isolated algorithmic bot instance with an initial <strong class="text-emerald-400">100,000.00</strong> virtual capital balance.
+                        </p>
+                    </div>
+
+                    <div class="bg-slate-950/70 border border-slate-800 p-6 rounded-2xl space-y-4 shadow-xl">
+                        <div class="flex border-b border-slate-800 text-xs font-semibold">
+                            <button id="auth-tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 text-blue-400 border-b-2 border-blue-500 font-medium">Log In</button>
+                            <button id="auth-tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 text-slate-400 hover:text-white">New Registration</button>
+                        </div>
+
+                        <div class="space-y-3 pt-2">
+                            <div>
+                                <label class="block text-[11px] font-mono text-slate-400 uppercase mb-1">Trader ID / Username</label>
+                                <input type="text" id="bot-auth-username" placeholder="e.g. quant_trader1" class="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2 text-xs text-white outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-mono text-slate-400 uppercase mb-1">Password</label>
+                                <input type="password" id="bot-auth-password" placeholder="••••••••" class="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl px-3.5 py-2 text-xs text-white outline-none">
+                            </div>
+                        </div>
+
+                        <div id="bot-auth-error" class="hidden text-xs text-rose-400 bg-rose-950/40 border border-rose-800/50 p-2 rounded-lg"></div>
+
+                        <button id="bot-auth-submit" onclick="submitBotAuth()" class="w-full py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-lg shadow-blue-500/20 active:scale-95 transition-all">
+                            Sign In to Personal Bot
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 2. BOT DASHBOARD VIEW (Shown when authenticated) -->
+                <div id="bot-dashboard-view" class="hidden space-y-6">
+
+                    <!-- Top Banner: User info & Bot Action Buttons -->
+                    <div class="flex flex-wrap items-center justify-between gap-4 p-4 rounded-2xl bg-slate-950/80 border border-slate-800">
+                        <div class="flex items-center gap-3">
+                            <div class="w-10 h-10 rounded-xl bg-blue-600/10 border border-blue-500/30 flex items-center justify-center text-blue-400 font-bold text-sm">
+                                <i class="fa-solid fa-user-astronaut"></i>
+                            </div>
+                            <div>
+                                <div class="text-xs text-slate-400">Authenticated Trader</div>
+                                <div class="text-sm font-bold text-white flex items-center gap-2">
+                                    <span id="bot-user-display">trader</span>
+                                    <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded-full font-mono">Personal Bot</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Main Action Buttons -->
+                        <div class="flex items-center flex-wrap gap-2.5">
+                            <button id="btn-toggle-bot" onclick="toggleBotRun()" class="px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20">
+                                <i class="fa-solid fa-play"></i>
+                                <span>Start Autonomous Bot</span>
+                            </button>
+
+                            <button onclick="triggerImmediateScan()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 flex items-center gap-1.5 transition-all active:scale-95">
+                                <i class="fa-solid fa-bolt"></i>
+                                <span>Scan & Execute Now</span>
+                            </button>
+
+                            <button onclick="resetBotAccount()" class="px-3 py-2 rounded-xl text-xs font-semibold bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 flex items-center gap-1.5 transition-all active:scale-95" title="Reset balance to 100,000.00 at any instance">
+                                <i class="fa-solid fa-rotate-left"></i>
+                                <span>Reset Balance (100k)</span>
+                            </button>
+
+                            <button onclick="logoutBotUser()" class="px-3 py-2 rounded-xl text-xs text-slate-400 hover:text-white hover:bg-slate-800 transition-colors">
+                                <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Metrics Grid (Balance without currency symbol) -->
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 font-mono">
+                        <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
+                            <span class="text-[11px] text-slate-400 block font-sans">Account Balance</span>
+                            <div id="stat-balance" class="text-xl font-bold text-white mt-1">100,000.00</div>
+                            <span class="text-[9px] text-slate-500 font-sans">Simulated Paper Capital</span>
+                        </div>
+                        <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
+                            <span class="text-[11px] text-slate-400 block font-sans">Initial Capital</span>
+                            <div class="text-xl font-bold text-slate-300 mt-1">100,000.00</div>
+                            <span class="text-[9px] text-slate-500 font-sans">Base Allocation</span>
+                        </div>
+                        <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
+                            <span class="text-[11px] text-slate-400 block font-sans">Realized P&L</span>
+                            <div id="stat-pnl" class="text-xl font-bold text-slate-300 mt-1">0.00</div>
+                            <span class="text-[9px] text-slate-500 font-sans">Closed Trades</span>
+                        </div>
+                        <div class="bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80">
+                            <span class="text-[11px] text-slate-400 block font-sans">Active Positions</span>
+                            <div id="stat-open-count" class="text-xl font-bold text-blue-400 mt-1">0</div>
+                            <span class="text-[9px] text-slate-500 font-sans">Max 4 Concurrent</span>
+                        </div>
+                    </div>
+
+                    <!-- Real-Time Watched Universe Bar (NIFTY 50, BANK NIFTY, Gold, Nasdaq) -->
+                    <div class="bg-slate-950/70 p-4 rounded-2xl border border-slate-800 space-y-2.5">
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-satellite-dish text-blue-400"></i>
+                                Core Institutional Universe (Sub-5s Streaming)
+                            </span>
+                            <span class="text-[10px] text-slate-400 font-mono">Status: 🟢 Live Market | 🔴 Closed</span>
+                        </div>
+                        <div id="market-ticker-grid" class="grid grid-cols-2 sm:grid-cols-4 gap-3 font-mono text-xs">
+                            <!-- Populated dynamically with live/closed indicators -->
+                        </div>
+                    </div>
+
+                    <!-- Bot Strategy & Risk Management Configuration -->
+                    <div class="bg-slate-950/70 p-5 rounded-2xl border border-slate-800 space-y-4">
+                        <div class="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                            <i class="fa-solid fa-sliders text-blue-400"></i>
+                            Autonomous Trading Engine & Derivatives Mode
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                            <div class="space-y-1.5">
+                                <label class="text-[11px] text-slate-400 font-sans">Trading Strategy</label>
+                                <select id="bot-mode-select" onchange="saveBotSettings()" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-blue-500">
+                                    <option value="SCALPING">⚡ Scalping (1m - 5m Micro Momentum)</option>
+                                    <option value="INTRADAY">📊 Intraday (15m Trend Breakout)</option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label class="text-[11px] text-slate-400 font-sans">Risk Per Trade (% of Capital)</label>
+                                <select id="bot-risk-select" onchange="saveBotSettings()" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-blue-500">
+                                    <option value="0.5">0.5% (Conservative - 500 pts)</option>
+                                    <option value="1.0" selected>1.0% (Balanced - 1,000 pts)</option>
+                                    <option value="2.0">2.0% (Aggressive - 2,000 pts)</option>
+                                </select>
+                            </div>
+
+                            <div class="space-y-1.5">
+                                <label class="text-[11px] text-slate-400 font-sans">Target Risk-to-Reward (R:R)</label>
+                                <select id="bot-rr-select" onchange="saveBotSettings()" class="w-full bg-slate-900 border border-slate-800 rounded-xl px-3 py-2 text-white outline-none focus:border-blue-500">
+                                    <option value="1.5">1 : 1.5</option>
+                                    <option value="2.0" selected>1 : 2.0 (Institutional Standard)</option>
+                                    <option value="2.5">1 : 2.5</option>
+                                    <option value="3.0">1 : 3.0 (High Reward)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- ========================================================= -->
+                    <!-- MANUAL PAPER TRADING PANEL (TradingView Multi-Asset Search) -->
+                    <!-- ========================================================= -->
+                    <div class="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-4">
+                        <div class="flex items-center justify-between text-xs">
+                            <h5 class="font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-hand-holding-dollar text-emerald-400"></i> Manual Paper Trading Desk
+                            </h5>
+                            <span class="text-[10px] text-slate-400 font-mono">Shared 100k Capital Pool</span>
+                        </div>
+
+                        <!-- TradingView Style Universal Search Bar -->
+                        <div class="relative">
+                            <div class="relative">
+                                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i>
+                                <input type="text" id="manual-search-input" placeholder="Search any Stock, NIFTY/BANKNIFTY CE/PE Option, Gold, Futures, Forex..."
+                                    oninput="onManualSearchInput(this.value)"
+                                    autocomplete="off"
+                                    class="w-full bg-slate-900 border border-slate-800 focus:border-blue-500 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 outline-none font-mono">
+                            </div>
+                            <div id="manual-search-dropdown" class="hidden absolute top-12 left-0 w-full glass-panel rounded-xl shadow-2xl border border-slate-800 z-50 overflow-hidden divide-y divide-slate-800/80 max-h-72 overflow-y-auto custom-scrollbar"></div>
+                        </div>
+
+                        <!-- Manual Order Configuration Box -->
+                        <div id="manual-order-form" class="hidden p-4 rounded-xl bg-slate-900/90 border border-slate-800 space-y-3 font-mono text-xs">
+                            <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+                                <div>
+                                    <span id="mo-symbol" class="font-bold text-white text-sm">NIFTY 25000 CE</span>
+                                    <span id="mo-name" class="text-[11px] text-slate-400 ml-2">Nifty Call Option</span>
+                                </div>
+                                <span id="mo-lot-badge" class="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] px-2 py-0.5 rounded font-mono">1 Lot = 25 Qty</span>
+                            </div>
+
+                            <!-- Live Spot Price Display with Live/Closed status -->
+                            <div id="mo-spot-strip" class="flex items-center justify-between bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2 font-mono text-xs">
+                                <div class="space-y-0.5">
+                                    <div class="text-[10px] text-slate-400 font-sans">Underlying Spot Price</div>
+                                    <div class="flex items-center gap-2">
+                                        <span id="mo-spot-price" class="text-base font-bold text-white">--</span>
+                                        <span id="mo-spot-chg" class="text-[11px] font-semibold text-slate-400"></span>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span id="mo-market-label" class="text-[10px] text-slate-500 font-sans">--</span>
+                                    <span id="mo-live-badge" class="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-slate-800 text-slate-400 border-slate-700">--</span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Direction</label>
+                                    <select id="mo-direction" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white">
+                                        <option value="BUY">BUY / LONG</option>
+                                        <option value="SELL">SELL / SHORT</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Entry Price</label>
+                                    <input type="number" id="mo-price" step="0.05" oninput="this.dataset.userEdited='true'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white">
+                                </div>
+                                <div>
+                                    <label id="mo-lots-label" class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Lots (1 Lot = 25)</label>
+                                    <input type="number" id="mo-lots" value="1" min="1" oninput="updateTotalQty()" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Total Quantity</label>
+                                    <input type="text" id="mo-total-qty" value="25" readonly class="w-full bg-slate-950/50 border border-slate-800 text-slate-400 rounded-lg px-2.5 py-1.5">
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-3 pt-1">
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Stop Loss (Optional)</label>
+                                    <input type="number" id="mo-sl" placeholder="Auto 2%" step="0.05" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-rose-400">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Take Profit (Optional)</label>
+                                    <input type="number" id="mo-tp" placeholder="Auto 4%" step="0.05" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-emerald-400">
+                                </div>
+                            </div>
+
+                            <button onclick="submitManualPaperTrade()" class="w-full py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold shadow-lg shadow-emerald-500/20 active:scale-95 transition-all text-xs">
+                                <i class="fa-solid fa-check"></i> Execute Paper Order
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Active Open Positions (With Live Floating P&L and Close Action) -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between text-xs">
+                            <h5 class="font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-chart-simple text-blue-400"></i> Active Open Positions
+                            </h5>
+                            <span class="text-[10px] text-slate-400 font-mono">Live Floating Profit/Loss</span>
+                        </div>
+                        <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/70">
+                            <table class="w-full text-left text-xs font-mono">
+                                <thead class="bg-slate-900/80 text-[10px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-sans">
+                                    <tr>
+                                        <th class="p-3">Asset</th>
+                                        <th class="p-3">Type</th>
+                                        <th class="p-3">Entry</th>
+                                        <th class="p-3">Current</th>
+                                        <th class="p-3">Stop Loss</th>
+                                        <th class="p-3">Take Profit</th>
+                                        <th class="p-3">Qty</th>
+                                        <th class="p-3">Floating P&L</th>
+                                        <th class="p-3">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="open-positions-tbody" class="divide-y divide-slate-800/60">
+                                    <tr><td colspan="9" class="p-4 text-center text-slate-500 font-sans text-xs">No active positions open. Autonomous scanner active.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Algorithmic Trade Log with Detailed Reasoning -->
+                    <div class="space-y-3">
+                        <div class="flex items-center justify-between text-xs">
+                            <h5 class="font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-clipboard-check text-indigo-400"></i> Algorithmic Execution Journal & Reasoning
+                            </h5>
+                            <span class="text-[10px] text-slate-400 font-sans">Every trade recorded with quantitative trigger</span>
+                        </div>
+                        <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950/70">
+                            <table class="w-full text-left text-xs font-mono">
+                                <thead class="bg-slate-900/80 text-[10px] text-slate-400 uppercase tracking-wider border-b border-slate-800 font-sans">
+                                    <tr>
+                                        <th class="p-3">Time</th>
+                                        <th class="p-3">Asset</th>
+                                        <th class="p-3">Direction</th>
+                                        <th class="p-3">Entry</th>
+                                        <th class="p-3">Exit</th>
+                                        <th class="p-3">P&L</th>
+                                        <th class="p-3">Result</th>
+                                        <th class="p-3">Algo Thesis / Reason</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trade-log-tbody" class="divide-y divide-slate-800/60">
+                                    <tr><td colspan="8" class="p-4 text-center text-slate-500 font-sans text-xs">Trade history will appear as the algo executes positions.</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- ========================================================= -->
+                    <!-- EMBEDDED AI ADVISOR CHATBOT INSIDE ALGO BOT -->
+                    <!-- ========================================================= -->
+                    <div class="bg-slate-950/80 p-5 rounded-2xl border border-slate-800 space-y-3">
+                        <div class="flex items-center justify-between">
+                            <h5 class="font-bold text-xs text-white uppercase tracking-wider flex items-center gap-2">
+                                <i class="fa-solid fa-robot text-blue-400"></i> AI Quant Strategy Advisor
+                            </h5>
+                            <span class="text-[10px] text-slate-400 font-mono">Interactive Assistant</span>
+                        </div>
+                        <div id="bot-modal-chat-messages" class="h-48 overflow-y-auto p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-xs custom-scrollbar space-y-2">
+                            <div class="text-slate-400 text-xs">
+                                🤖 Ask me about Nifty 50, Bank Nifty, Gold, or strategy levels!
+                            </div>
+                        </div>
+                        <form onsubmit="sendBotModalChat(event)" class="flex gap-2">
+                            <input type="text" id="bot-modal-chat-input" placeholder="Ask AI Advisor about trades, sentiment, or key levels..."
+                                class="flex-1 bg-slate-900 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white outline-none focus:border-blue-500">
+                            <button type="submit" class="bg-blue-600 hover:bg-blue-500 text-white rounded-xl px-4 py-2 text-xs shadow">
+                                <i class="fa-solid fa-paper-plane"></i>
+                            </button>
+                        </form>
+                    </div>
+
+                </div>
+
+            </div>
+
+        </div>
+    </div>
+
     <script>
-        // TradingView Style Dynamic Live Autocomplete Search
         let searchTimer;
         function onSearchInput(val) {
             clearTimeout(searchTimer);
             const dropdown = document.getElementById('tv-search-dropdown');
-            if (!val.trim()) {
-                dropdown.classList.add('hidden');
-                return;
-            }
+            if (!val.trim()) { dropdown.classList.add('hidden'); return; }
             searchTimer = setTimeout(async () => {
                 try {
                     const res = await fetch(`/api/search_stocks?q=${encodeURIComponent(val)}`);
                     const data = await res.json();
-                    if (data.length === 0) {
-                        dropdown.classList.add('hidden');
-                        return;
-                    }
+                    if (data.length === 0) { dropdown.classList.add('hidden'); return; }
                     dropdown.innerHTML = data.map(item => `
                         <div onclick="selectStock('${item.symbol}')" class="p-2.5 hover:bg-blue-600/20 cursor-pointer flex items-center justify-between font-mono text-xs transition-colors">
                             <div class="flex items-center gap-2">
                                 <span class="font-bold text-white">${item.symbol}</span>
                                 <span class="text-[11px] text-slate-400 truncate max-w-[170px]">${item.name}</span>
                             </div>
-                            <div class="flex items-center gap-1">
-                                <span class="text-[9px] bg-blue-500/10 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20">${item.type}</span>
-                                <span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">${item.exchange}</span>
-                            </div>
+                            <span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">${item.exchange}</span>
                         </div>
                     `).join('');
                     dropdown.classList.remove('hidden');
-                } catch (e) {
-                    dropdown.classList.add('hidden');
-                }
+                } catch (e) { dropdown.classList.add('hidden'); }
             }, 180);
         }
 
@@ -354,6 +1126,21 @@
         }
 
         const sessionId = "session_" + Math.random().toString(36).substring(2, 8);
+
+        // Configure marked options
+        if (window.marked) {
+            marked.setOptions({ breaks: true, gfm: true });
+        }
+
+        function safeHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
         async function sendChatMessage(e) {
             e.preventDefault();
             const input = document.getElementById('chat-input');
@@ -361,40 +1148,878 @@
             if (!msg) return;
 
             const chatLogs = document.getElementById('chat-messages');
-            chatLogs.innerHTML += `<div class="flex justify-end"><div class="bg-blue-600 text-white p-2 rounded-xl text-xs max-w-[85%]">${msg}</div></div>`;
+
+            // User bubble
+            chatLogs.innerHTML += `
+                <div class="flex justify-end mb-2">
+                    <div class="bg-blue-600 text-white px-3 py-2 rounded-2xl rounded-tr-sm text-xs max-w-[82%] leading-relaxed shadow">
+                        ${safeHtml(msg)}
+                    </div>
+                </div>`;
             input.value = '';
+            chatLogs.scrollTop = chatLogs.scrollHeight;
+
+            // Typing indicator
+            const typingId = 'typing_' + Date.now();
+            chatLogs.innerHTML += `
+                <div id="${typingId}" class="flex justify-start items-end gap-2 mb-2">
+                    <div class="w-6 h-6 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white text-[9px] flex-shrink-0 shadow">
+                        <i class="fa-solid fa-robot"></i>
+                    </div>
+                    <div class="bg-slate-900 border border-slate-800 px-3 py-2.5 rounded-2xl rounded-tl-sm shadow">
+                        <div class="flex items-center gap-1.5 px-1">
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                            <span class="typing-dot"></span>
+                        </div>
+                    </div>
+                </div>`;
             chatLogs.scrollTop = chatLogs.scrollHeight;
 
             try {
                 const res = await fetch('/api/chat', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ symbol: "{{ ticker }}", message: msg, session_id: sessionId })
+                    body: JSON.stringify({
+                        symbol: "{{ ticker if ticker else '' }}",
+                        message: msg,
+                        session_id: sessionId
+                    })
                 });
                 const data = await res.json();
-                chatLogs.innerHTML += `<div class="flex justify-start"><div class="bg-slate-900 border border-slate-800 text-slate-200 p-2.5 rounded-xl text-xs max-w-[90%]">${data.response}</div></div>`;
+
+                // Remove typing indicator
+                const typingEl = document.getElementById(typingId);
+                if (typingEl) typingEl.remove();
+
+                const replyText = (data && data.response) ? data.response : '⚠️ No response received.';
+                const isError = !data || data.success === false;
+
+                // Render markdown via marked or fallback
+                let renderedHtml;
+                if (window.marked && !isError) {
+                    renderedHtml = marked.parse(replyText);
+                } else {
+                    renderedHtml = safeHtml(replyText).replace(/\n/g, '<br>');
+                }
+
+                const bubbleBorder = isError
+                    ? 'border-red-500/40 bg-red-950/30'
+                    : 'border-slate-700/60 bg-slate-900';
+
+                chatLogs.innerHTML += `
+                    <div class="flex justify-start items-end gap-2 mb-3">
+                        <div class="w-6 h-6 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-full flex items-center justify-center text-white text-[9px] flex-shrink-0 shadow">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <div class="${bubbleBorder} border px-3.5 py-2.5 rounded-2xl rounded-tl-sm text-slate-200 text-[0.72rem] max-w-[88%] robo-msg shadow overflow-x-auto">
+                            ${renderedHtml}
+                        </div>
+                    </div>`;
                 chatLogs.scrollTop = chatLogs.scrollHeight;
+
             } catch (err) {
-                chatLogs.innerHTML += `<div class="text-red-400 text-xs">Error communicating with agent.</div>`;
+                const typingEl = document.getElementById(typingId);
+                if (typingEl) typingEl.remove();
+                chatLogs.innerHTML += `
+                    <div class="flex justify-start items-center gap-2 mb-2">
+                        <div class="bg-red-950/80 border border-red-500/40 text-red-300 px-3 py-2 rounded-xl text-xs flex items-center gap-2">
+                            <i class="fa-solid fa-triangle-exclamation text-red-400"></i>
+                            <span>Connection error — please try again.</span>
+                        </div>
+                    </div>`;
+                chatLogs.scrollTop = chatLogs.scrollHeight;
             }
         }
 
-        // Render Plotly LSTM Chart
+        // =====================================================================
+        // QUICK QUANT PRO · AI ALGO TRADING BOT CONTROLLER
+        // =====================================================================
+        let currentAuthTab = 'login';
+        let botPollTimer = null;
+        let isBotModalOpen = false;
+
+        function toggleBotModal() {
+            const modal = document.getElementById('algo-bot-modal');
+            isBotModalOpen = !isBotModalOpen;
+            if (isBotModalOpen) {
+                modal.classList.remove('hidden');
+                loadBotState();
+                if (!botPollTimer) {
+                    botPollTimer = setInterval(loadBotState, 4000); // 4-second sub-5s refresh
+                }
+            } else {
+                modal.classList.add('hidden');
+                if (botPollTimer) {
+                    clearInterval(botPollTimer);
+                    botPollTimer = null;
+                }
+            }
+        }
+
+        function switchAuthTab(tab) {
+            currentAuthTab = tab;
+            const btnLogin = document.getElementById('auth-tab-login');
+            const btnReg = document.getElementById('auth-tab-register');
+            const submitBtn = document.getElementById('bot-auth-submit');
+            const errEl = document.getElementById('bot-auth-error');
+            errEl.classList.add('hidden');
+
+            if (tab === 'login') {
+                btnLogin.className = "flex-1 py-2 text-blue-400 border-b-2 border-blue-500 font-medium";
+                btnReg.className = "flex-1 py-2 text-slate-400 hover:text-white";
+                submitBtn.innerText = "Sign In to Personal Bot";
+            } else {
+                btnReg.className = "flex-1 py-2 text-blue-400 border-b-2 border-blue-500 font-medium";
+                btnLogin.className = "flex-1 py-2 text-slate-400 hover:text-white";
+                submitBtn.innerText = "Register & Provision 100k Account";
+            }
+        }
+
+        async function submitBotAuth() {
+            const u = document.getElementById('bot-auth-username').value.trim();
+            const p = document.getElementById('bot-auth-password').value.trim();
+            const errEl = document.getElementById('bot-auth-error');
+
+            if (!u || !p) {
+                errEl.innerText = "Please provide both username and password.";
+                errEl.classList.remove('hidden');
+                return;
+            }
+
+            try {
+                const res = await fetch('/api/bot/auth', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: currentAuthTab, username: u, password: p })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    errEl.classList.add('hidden');
+                    loadBotState();
+                } else {
+                    errEl.innerText = data.message || "Authentication error.";
+                    errEl.classList.remove('hidden');
+                }
+            } catch (e) {
+                errEl.innerText = "Failed to connect to authentication server.";
+                errEl.classList.remove('hidden');
+            }
+        }
+
+        async function logoutBotUser() {
+            await fetch('/api/bot/logout', { method: 'POST' });
+            loadBotState();
+        }
+
+        async function loadBotState() {
+            if (!isBotModalOpen) return;
+            try {
+                const res = await fetch('/api/bot/state');
+                const data = await res.json();
+
+                const authView = document.getElementById('bot-auth-view');
+                const dashView = document.getElementById('bot-dashboard-view');
+                const badge = document.getElementById('bot-status-badge');
+
+                if (!data.authenticated) {
+                    authView.classList.remove('hidden');
+                    dashView.classList.add('hidden');
+                    badge.innerText = "Offline";
+                    badge.className = "bg-slate-800 text-slate-400 text-[10px] px-2 py-0.5 rounded-full font-mono border border-slate-700";
+                    return;
+                }
+
+                // Authenticated View
+                authView.classList.add('hidden');
+                dashView.classList.remove('hidden');
+
+                const bot = data.bot;
+                document.getElementById('bot-user-display').innerText = data.username;
+
+                // Status Badge & Run Button
+                const toggleBtn = document.getElementById('btn-toggle-bot');
+                if (bot.status === 'RUNNING') {
+                    badge.innerText = "RUNNING";
+                    badge.className = "bg-emerald-500/20 text-emerald-400 text-[10px] px-2.5 py-0.5 rounded-full font-mono border border-emerald-500/40 animate-pulse";
+                    toggleBtn.className = "px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow active:scale-95 bg-amber-600 hover:bg-amber-500 text-white shadow-amber-500/20";
+                    toggleBtn.innerHTML = `<i class="fa-solid fa-pause"></i><span>Pause Bot</span>`;
+                } else {
+                    badge.innerText = "PAUSED";
+                    badge.className = "bg-amber-500/10 text-amber-400 text-[10px] px-2.5 py-0.5 rounded-full font-mono border border-amber-500/30";
+                    toggleBtn.className = "px-4 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 transition-all shadow active:scale-95 bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-500/20";
+                    toggleBtn.innerHTML = `<i class="fa-solid fa-play"></i><span>Start Autonomous Bot</span>`;
+                }
+
+                // Stats Cards (Balance formatted without currency symbol)
+                document.getElementById('stat-balance').innerText = Number(bot.balance).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const pnlEl = document.getElementById('stat-pnl');
+                const pnlVal = Number(bot.closed_pnl);
+                pnlEl.innerText = (pnlVal >= 0 ? '+' : '') + pnlVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                pnlEl.className = pnlVal >= 0 ? 'text-xl font-bold text-emerald-400 mt-1' : 'text-xl font-bold text-rose-400 mt-1';
+                document.getElementById('stat-open-count').innerText = bot.open_trades.length;
+
+                // Strategy Selectors
+                document.getElementById('bot-mode-select').value = bot.mode;
+                document.getElementById('bot-risk-select').value = String(bot.risk_pct);
+                document.getElementById('bot-rr-select').value = String(bot.rr_ratio);
+
+                // Live Market Tickers Grid (NIFTY 50, BANK NIFTY, Gold, Nasdaq with Live/Closed Status)
+                const tickerGrid = document.getElementById('market-ticker-grid');
+                if (data.market_data && tickerGrid) {
+                    tickerGrid.innerHTML = Object.entries(data.market_data).map(([k, v]) => {
+                        const chg = Number(v.change_pct);
+                        const chgColor = chg >= 0 ? 'text-emerald-400' : 'text-rose-400';
+                        const sign = chg >= 0 ? '+' : '';
+                        const isLive = v.is_live;
+                        const statusDot = isLive
+                            ? `<span class="flex items-center gap-1 text-[9px] text-emerald-400 font-bold"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>LIVE</span>`
+                            : `<span class="flex items-center gap-1 text-[9px] text-rose-400 font-bold"><span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>CLOSED</span>`;
+                        return `
+                            <div class="bg-slate-900/90 p-3 rounded-xl border border-slate-800 flex flex-col justify-between">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-[11px] text-white font-bold truncate">${v.name}</div>
+                                    ${statusDot}
+                                </div>
+                                <div class="text-base font-bold text-white mt-1">${Number(v.price).toLocaleString('en-US', { minimumFractionDigits: 2 })}</div>
+                                <div class="flex items-center justify-between mt-1 text-[10px]">
+                                    <span class="${chgColor} font-semibold">${sign}${chg}%</span>
+                                    <span class="text-slate-500 text-[9px]">${v.market}</span>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                }
+
+                // Render Active Open Positions with Live Floating P&L and Close Action
+                const openTbody = document.getElementById('open-positions-tbody');
+                if (bot.open_trades.length === 0) {
+                    openTbody.innerHTML = `<tr><td colspan="9" class="p-4 text-center text-slate-500 font-sans text-xs">No active positions open. Autonomous scanner active.</td></tr>`;
+                } else {
+                    openTbody.innerHTML = bot.open_trades.map(t => {
+                        const dirBadge = t.direction === 'BUY'
+                            ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">BUY</span>`
+                            : `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold">SELL</span>`;
+                        
+                        const floatPnl = Number(t.floating_pnl || 0.0);
+                        const floatPnlPct = Number(t.floating_pnl_pct || 0.0);
+                        const pnlColor = floatPnl >= 0 ? 'text-emerald-400' : 'text-rose-400';
+                        const sign = floatPnl >= 0 ? '+' : '';
+
+                        return `
+                            <tr class="hover:bg-slate-900/50 transition-colors">
+                                <td class="p-3 text-white font-bold">${t.asset_name}</td>
+                                <td class="p-3">${dirBadge}</td>
+                                <td class="p-3 text-slate-300">${Number(t.entry_price).toFixed(2)}</td>
+                                <td class="p-3 text-white font-semibold">${Number(t.current_price || t.entry_price).toFixed(2)}</td>
+                                <td class="p-3 text-rose-400">${Number(t.stop_loss).toFixed(2)}</td>
+                                <td class="p-3 text-emerald-400">${Number(t.take_profit).toFixed(2)}</td>
+                                <td class="p-3 text-slate-400">${t.quantity}</td>
+                                <td class="p-3 ${pnlColor} font-bold">${sign}${floatPnl.toFixed(2)} <span class="text-[10px] font-normal">(${sign}${floatPnlPct.toFixed(2)}%)</span></td>
+                                <td class="p-3">
+                                    <button onclick="closePosition(${t.id})" class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] transition-colors">
+                                        Close
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+                // Render Algorithmic Trade Log with Detailed Reasoning
+                const logTbody = document.getElementById('trade-log-tbody');
+                const closedTrades = bot.all_trades.filter(t => t.status !== 'OPEN');
+                if (closedTrades.length === 0) {
+                    logTbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 font-sans text-xs">No closed trades yet. Live triggers will be archived here.</td></tr>`;
+                } else {
+                    logTbody.innerHTML = closedTrades.map(t => {
+                        const dirBadge = t.direction === 'BUY'
+                            ? `<span class="text-emerald-400 font-bold">BUY</span>`
+                            : `<span class="text-rose-400 font-bold">SELL</span>`;
+                        
+                        let resBadge = '';
+                        if (t.status === 'TARGET_HIT') {
+                            resBadge = `<span class="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">TARGET HIT</span>`;
+                        } else if (t.status === 'STOPPED_OUT') {
+                            resBadge = `<span class="bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold">STOPPED OUT</span>`;
+                        } else {
+                            resBadge = `<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">MANUAL CLOSE</span>`;
+                        }
+
+                        const pnlVal = Number(t.pnl);
+                        const pnlColor = pnlVal >= 0 ? 'text-emerald-400 font-bold' : 'text-rose-400 font-bold';
+                        const sign = pnlVal >= 0 ? '+' : '';
+                        const dateStr = t.opened_at ? t.opened_at.split(' ')[1] || t.opened_at : 'Recent';
+
+                        return `
+                            <tr class="hover:bg-slate-900/60 transition-colors">
+                                <td class="p-3 text-slate-400 text-[11px]">${dateStr}</td>
+                                <td class="p-3 text-white font-medium">${t.asset_name}</td>
+                                <td class="p-3">${dirBadge}</td>
+                                <td class="p-3 text-slate-300">${Number(t.entry_price).toFixed(2)}</td>
+                                <td class="p-3 text-slate-300">${t.exit_price ? Number(t.exit_price).toFixed(2) : '-'}</td>
+                                <td class="p-3 ${pnlColor}">${sign}${pnlVal.toFixed(2)}</td>
+                                <td class="p-3">${resBadge}</td>
+                                <td class="p-3 font-sans text-[11px] text-slate-300 max-w-xs leading-snug">
+                                    <div class="bg-slate-900 border border-slate-800 p-2 rounded-lg">
+                                        ${t.reason}
+                                    </div>
+                                </td>
+                            </tr>
+                        `;
+                    }).join('');
+                }
+
+            } catch (err) {
+                console.error("Bot State Error:", err);
+            }
+        }
+
+        async function toggleBotRun() {
+            try {
+                const res = await fetch('/api/bot/toggle', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    loadBotState();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function triggerImmediateScan() {
+            try {
+                const res = await fetch('/api/bot/trigger', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    loadBotState();
+                }
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        async function resetBotAccount() {
+            if (confirm("Reset account balance back to 100,000.00? This will close any open positions.")) {
+                try {
+                    const res = await fetch('/api/bot/reset', { method: 'POST' });
+                    const data = await res.json();
+                    if (data.success) {
+                        loadBotState();
+                    }
+                } catch (e) {
+                    console.error(e);
+                }
+            }
+        }
+
+        async function saveBotSettings() {
+            const mode = document.getElementById('bot-mode-select').value;
+            const risk_pct = parseFloat(document.getElementById('bot-risk-select').value);
+            const rr_ratio = parseFloat(document.getElementById('bot-rr-select').value);
+
+            await fetch('/api/bot/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ mode, risk_pct, rr_ratio })
+            });
+            loadBotState();
+        }
+
+        // =====================================================================
+        // TRADINGVIEW MANUAL PAPER TRADING & F&O LOT SIZING LOGIC
+        // =====================================================================
+        let selectedManualInstrument = null;
+        let manualSearchTimer = null;
+
+        function onManualSearchInput(val) {
+            clearTimeout(manualSearchTimer);
+            const dropdown = document.getElementById('manual-search-dropdown');
+            if (!val.trim()) { dropdown.classList.add('hidden'); return; }
+
+            manualSearchTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`/api/bot/search_instruments?q=${encodeURIComponent(val)}`);
+                    const data = await res.json();
+                    if (data.length === 0) { dropdown.classList.add('hidden'); return; }
+
+                    dropdown.innerHTML = data.map(item => `
+                        <div onclick='selectManualInstrument(${JSON.stringify(item)})' class="p-2.5 hover:bg-blue-600/20 cursor-pointer flex items-center justify-between font-mono text-xs transition-colors">
+                            <div class="flex items-center gap-2">
+                                <span class="font-bold text-white">${item.symbol}</span>
+                                <span class="text-[11px] text-slate-400 truncate max-w-[190px]">${item.name}</span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="text-[9px] bg-blue-950 text-blue-300 border border-blue-800 px-1.5 py-0.5 rounded">${item.unit_label}</span>
+                                <span class="text-[9px] bg-slate-800 text-slate-400 px-1.5 py-0.5 rounded">${item.exchange}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                    dropdown.classList.remove('hidden');
+                } catch (e) {
+                    dropdown.classList.add('hidden');
+                }
+            }, 180);
+        }
+
+        function selectManualInstrument(item) {
+            selectedManualInstrument = item;
+            document.getElementById('manual-search-dropdown').classList.add('hidden');
+            document.getElementById('manual-search-input').value = item.symbol;
+
+            document.getElementById('mo-symbol').innerText = item.symbol;
+            document.getElementById('mo-name').innerText = item.name;
+            document.getElementById('mo-lot-badge').innerText = item.unit_label;
+
+            // Reset user-edited flag so live price can populate the entry price field
+            const priceInput = document.getElementById('mo-price');
+            priceInput.value = item.approx_price > 0 ? item.approx_price : 100.0;
+            delete priceInput.dataset.userEdited;
+
+            document.getElementById('mo-lots-label').innerText = `Lots (${item.unit_label})`;
+            document.getElementById('mo-lots').value = 1;
+
+            // Reset spot strip to loading state
+            document.getElementById('mo-spot-price').innerText = '…';
+            document.getElementById('mo-spot-chg').innerText = '';
+            document.getElementById('mo-market-label').innerText = '';
+            document.getElementById('mo-live-badge').innerText = '…';
+
+            updateTotalQty();
+            document.getElementById('manual-order-form').classList.remove('hidden');
+
+            // Clear any existing spot price poll and start a fresh one
+            if (window.manualQuoteTimer) { clearInterval(window.manualQuoteTimer); window.manualQuoteTimer = null; }
+            fetchManualSpotQuote(item.symbol, item.name);
+            window.manualQuoteTimer = setInterval(() => fetchManualSpotQuote(item.symbol, item.name), 4000);
+        }
+
+        async function fetchManualSpotQuote(symbol, name) {
+            try {
+                const res = await fetch(`/api/bot/quote?symbol=${encodeURIComponent(symbol)}&name=${encodeURIComponent(name || symbol)}`);
+                const q = await res.json();
+                if (!q || q.error) return;
+
+                // Update spot price
+                const spotEl = document.getElementById('mo-spot-price');
+                const spotVal = Number(q.spot_price);
+                spotEl.innerText = spotVal > 0 ? spotVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
+
+                // Update change %
+                const chg = Number(q.change_pct);
+                const chgEl = document.getElementById('mo-spot-chg');
+                const sign = chg >= 0 ? '+' : '';
+                chgEl.innerText = isNaN(chg) ? '' : `${sign}${chg.toFixed(2)}%`;
+                chgEl.className = `text-[11px] font-semibold ${chg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+
+                // Market label
+                document.getElementById('mo-market-label').innerText = q.market_label || '';
+
+                // Live / Closed badge
+                const liveBadge = document.getElementById('mo-live-badge');
+                if (q.is_live) {
+                    liveBadge.innerText = '🟢 LIVE';
+                    liveBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full border bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                } else {
+                    liveBadge.innerText = '🔴 CLOSED';
+                    liveBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-500/10 text-rose-400 border-rose-500/30';
+                }
+
+                // Auto-fill entry price only if user hasn't manually edited it
+                const priceInput = document.getElementById('mo-price');
+                if (!priceInput.dataset.userEdited && q.contract_price > 0) {
+                    priceInput.value = q.contract_price;
+                }
+            } catch (e) {
+                console.error('Spot quote error:', e);
+            }
+        }
+
+        function updateTotalQty() {
+            if (!selectedManualInstrument) return;
+            const lots = parseInt(document.getElementById('mo-lots').value) || 1;
+            const lotSize = selectedManualInstrument.lot_size || 1;
+            document.getElementById('mo-total-qty').value = lots * lotSize;
+        }
+
+        async function submitManualPaperTrade() {
+            if (!selectedManualInstrument) return;
+            const dir = document.getElementById('mo-direction').value;
+            const price = parseFloat(document.getElementById('mo-price').value);
+            const lots = parseInt(document.getElementById('mo-lots').value) || 1;
+            const lotSize = selectedManualInstrument.lot_size || 1;
+            const sl = parseFloat(document.getElementById('mo-sl').value) || 0.0;
+            const tp = parseFloat(document.getElementById('mo-tp').value) || 0.0;
+
+            try {
+                const res = await fetch('/api/bot/manual_trade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        symbol: selectedManualInstrument.symbol,
+                        name: selectedManualInstrument.name,
+                        direction: dir,
+                        price: price,
+                        lots: lots,
+                        lot_size: lotSize,
+                        stop_loss: sl,
+                        take_profit: tp
+                    })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('manual-order-form').classList.add('hidden');
+                    // Stop live spot price polling when form closes
+                    if (window.manualQuoteTimer) { clearInterval(window.manualQuoteTimer); window.manualQuoteTimer = null; }
+                    document.getElementById('manual-search-input').value = '';
+                    loadBotState();
+                } else {
+                    alert(data.message || "Order rejected.");
+                }
+            } catch (err) {
+                console.error("Trade submit error:", err);
+            }
+        }
+
+        async function closePosition(tradeId) {
+            if (confirm("Close this active position at current market price?")) {
+                try {
+                    const res = await fetch('/api/bot/close_trade', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trade_id: tradeId })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        loadBotState();
+                    }
+                } catch (e) {
+                    console.error("Close position error:", e);
+                }
+            }
+        }
+
+        // =====================================================================
+        // EMBEDDED AI ADVISOR CHATBOT INSIDE BOT MODAL
+        // =====================================================================
+        async function sendBotModalChat(e) {
+            e.preventDefault();
+            const input = document.getElementById('bot-modal-chat-input');
+            const msg = input.value.trim();
+            if (!msg) return;
+
+            const box = document.getElementById('bot-modal-chat-messages');
+            box.innerHTML += `
+                <div class="flex justify-end">
+                    <div class="bg-blue-600 text-white px-3 py-1.5 rounded-xl text-xs max-w-[85%]">${safeHtml(msg)}</div>
+                </div>
+            `;
+            input.value = '';
+            box.scrollTop = box.scrollHeight;
+
+            try {
+                const res = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol: "^NSEI", message: msg, session_id: "bot_modal_" + Date.now() })
+                });
+                const data = await res.json();
+                const reply = (data && data.response) ? data.response : "⚠️ No response received.";
+                const html = window.marked ? marked.parse(reply) : safeHtml(reply);
+
+                box.innerHTML += `
+                    <div class="flex justify-start items-start gap-2">
+                        <div class="w-5 h-5 rounded-full bg-blue-600 flex items-center justify-center text-[9px] text-white flex-shrink-0 mt-0.5">
+                            <i class="fa-solid fa-robot"></i>
+                        </div>
+                        <div class="bg-slate-950 border border-slate-800 p-2.5 rounded-xl text-slate-200 text-xs robo-msg max-w-[90%]">
+                            ${html}
+                        </div>
+                    </div>
+                `;
+                box.scrollTop = box.scrollHeight;
+            } catch (err) {
+                box.innerHTML += `<div class="text-rose-400 text-xs">Error connecting to AI Advisor.</div>`;
+            }
+        }
+
+        // =====================================================================
+        // AUTO-REFRESH: GLOBAL MARKET OVERVIEW CARDS (every 4.5s)
+        // =====================================================================
+        async function refreshMacroOverview() {
+            try {
+                const res = await fetch('/api/macro_overview');
+                if (!res.ok) return;
+                const data = await res.json();
+                data.forEach((item, i) => {
+                    const card = document.getElementById('macro-card-' + i);
+                    if (!card) return;
+
+                    // Update price
+                    const priceEl = card.querySelector('.macro-price');
+                    if (priceEl) priceEl.innerText = Number(item.price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+                    // Update change line
+                    const changeEl = card.querySelector('.macro-change');
+                    if (changeEl) {
+                        const chg = Number(item.change_pct);
+                        const pts = Number(item.change_points);
+                        const sign = chg >= 0 ? '+' : '';
+                        changeEl.innerText = `${sign}${pts.toFixed(2)} (${sign}${chg.toFixed(2)}%)`;
+                        changeEl.className = `text-xs font-bold ${chg >= 0 ? 'text-emerald-400' : 'text-red-400'} mt-1 macro-change`;
+                    }
+
+                    // Update Live/Closed badge
+                    const badgeEl = card.querySelector('[data-live-badge]');
+                    if (badgeEl) {
+                        if (item.is_live) {
+                            badgeEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>LIVE';
+                            badgeEl.className = 'flex items-center gap-1 text-[9px] text-emerald-400 font-bold';
+                        } else {
+                            badgeEl.innerHTML = '<span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span>CLOSED';
+                            badgeEl.className = 'flex items-center gap-1 text-[9px] text-rose-400 font-bold';
+                        }
+                    }
+                });
+            } catch(e) { /* silent fail */ }
+        }
+
+        // Start macro auto-refresh only on landing page (where macro-cards-container exists)
+        if (document.getElementById('macro-cards-container')) {
+            refreshMacroOverview(); // immediate first refresh
+            setInterval(refreshMacroOverview, 4500);
+        }
+
         {% if trade_analysis and trade_analysis.quant_summary %}
         const quantData = {{ trade_analysis.quant_summary | tojson }};
-        const curPrice = quantData.current_price || 100;
-        const forecast = quantData.forecast_trajectory || [];
-        const dates = Array.from({length: forecast.length}, (_, i) => `Day +${i+1}`);
+        const fundData = {{ trade_analysis.fundamental_summary | tojson if trade_analysis.fundamental_summary else '{}' }};
+        const currentSymbol = "{{ ticker }}";
 
-        Plotly.newPlot('lstm-chart', [{
-            x: dates, y: forecast, type: 'scatter', mode: 'lines+markers',
-            line: { color: '#10b981', width: 2.5 }
-        }], {
-            paper_bgcolor: 'transparent', plot_bgcolor: 'transparent',
-            margin: { t: 10, r: 20, l: 40, b: 30 },
-            xaxis: { gridcolor: '#1e293b', tickfont: { color: '#64748b', size: 10 } },
-            yaxis: { gridcolor: '#1e293b', tickfont: { color: '#64748b', size: 10 }, tickprefix: '$' }
-        }, {responsive: true, displayModeBar: false});
+        const histDates = quantData.historical_dates || [];
+        const histPrices = quantData.historical_prices || [];
+        const histOpens = quantData.historical_opens || histPrices;
+        const histHighs = quantData.historical_highs || histPrices;
+        const histLows = quantData.historical_lows || histPrices;
+        const ma20 = quantData.ma20 || [];
+        const ma200 = quantData.ma200 || [];
+        const forecastDates = quantData.forecast_dates || [];
+        const forecastPrices = quantData.forecast_trajectory || [];
+        const rsiSeries = quantData.rsi_series || [];
+
+        // Connect solid spot price line to dotted forecast line seamlessly
+        const lastHistDate = histDates[histDates.length - 1] || 'Today';
+        const lastHistPrice = histPrices[histPrices.length - 1] || quantData.current_price;
+        const fullForecastDates = [lastHistDate, ...forecastDates];
+        const fullForecastPrices = [lastHistPrice, ...forecastPrices];
+
+        let currentChartType = 'line';
+
+        function renderMainChart(type) {
+            currentChartType = type;
+            const traces = [];
+
+            if (type === 'candlestick') {
+                traces.push({
+                    name: 'Spot Candles',
+                    x: histDates,
+                    open: histOpens,
+                    high: histHighs,
+                    low: histLows,
+                    close: histPrices,
+                    type: 'candlestick',
+                    increasing: { line: { color: '#10b981' } },
+                    decreasing: { line: { color: '#f43f5e' } },
+                    xaxis: 'x',
+                    yaxis: 'y'
+                });
+            } else {
+                traces.push({
+                    name: 'Historical Spot',
+                    x: histDates,
+                    y: histPrices,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#3b82f6', width: 2.5 },
+                    fill: 'tozeroy',
+                    fillcolor: 'rgba(59, 130, 246, 0.05)'
+                });
+            }
+
+            // 30-Day Forecast Trajectory
+            traces.push({
+                name: '30D Neural Forecast',
+                x: fullForecastDates,
+                y: fullForecastPrices,
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#10b981', width: 2.5, dash: 'dot' }
+            });
+
+            // 20 MA & 200 MA
+            traces.push({
+                name: '20 MA',
+                x: histDates,
+                y: ma20,
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#f59e0b', width: 1.5 }
+            });
+            traces.push({
+                name: '200 MA',
+                x: histDates,
+                y: ma200,
+                type: 'scatter',
+                mode: 'lines',
+                line: { color: '#8b5cf6', width: 1.5 }
+            });
+
+            Plotly.newPlot('lstm-chart', traces, {
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                margin: { t: 25, r: 25, l: 45, b: 35 },
+                legend: { orientation: 'h', y: 1.15, x: 0, font: { color: '#94a3b8', size: 10 } },
+                xaxis: { gridcolor: '#1e293b', rangeslider: { visible: false }, tickfont: { color: '#64748b', size: 10 } },
+                yaxis: { gridcolor: '#1e293b', tickfont: { color: '#64748b', size: 10 } }
+            }, { responsive: true, displayModeBar: false });
+        }
+
+        function setChartType(type) {
+            const btnLine = document.getElementById('chart-mode-line');
+            const btnCandle = document.getElementById('chart-mode-candle');
+            if (type === 'candlestick') {
+                btnCandle.className = "px-3 py-1 rounded-lg bg-blue-600 text-white font-semibold transition-all";
+                btnLine.className = "px-3 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-all";
+            } else {
+                btnLine.className = "px-3 py-1 rounded-lg bg-blue-600 text-white font-semibold transition-all";
+                btnCandle.className = "px-3 py-1 rounded-lg bg-slate-800 text-slate-400 hover:text-white transition-all";
+            }
+            renderMainChart(type);
+        }
+
+        // Render main price chart initially
+        renderMainChart('line');
+
+        // =====================================================================
+        // TRADINGVIEW STYLE RSI CHART (70 Overbought / 30 Oversold shaded band)
+        // =====================================================================
+        if (document.getElementById('rsi-chart')) {
+            const rsiTraces = [
+                {
+                    name: 'RSI (14)',
+                    x: histDates,
+                    y: rsiSeries,
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#a855f7', width: 2 }
+                },
+                {
+                    name: 'Overbought (70)',
+                    x: histDates,
+                    y: Array(histDates.length).fill(70),
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#f43f5e', width: 1, dash: 'dash' },
+                    hoverinfo: 'skip'
+                },
+                {
+                    name: 'Oversold (30)',
+                    x: histDates,
+                    y: Array(histDates.length).fill(30),
+                    type: 'scatter',
+                    mode: 'lines',
+                    line: { color: '#10b981', width: 1, dash: 'dash' },
+                    hoverinfo: 'skip'
+                }
+            ];
+
+            Plotly.newPlot('rsi-chart', rsiTraces, {
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                margin: { t: 15, r: 20, l: 35, b: 30 },
+                showlegend: false,
+                xaxis: { gridcolor: '#1e293b', tickfont: { color: '#64748b', size: 9 } },
+                yaxis: {
+                    gridcolor: '#1e293b',
+                    range: [10, 90],
+                    tickfont: { color: '#64748b', size: 9 },
+                    tickvals: [30, 50, 70]
+                }
+            }, { responsive: true, displayModeBar: false });
+        }
+
+        // =====================================================================
+        // SHAREHOLDING BREAKDOWN PIE CHART (FII, DII, Retailers)
+        // =====================================================================
+        if (document.getElementById('shareholders-pie')) {
+            const sh = (fundData && fundData.shareholders) ? fundData.shareholders : { fii_pct: 24.5, dii_pct: 19.5, retail_promoter_pct: 56.0 };
+            const pieData = [{
+                values: [sh.fii_pct || 24.5, sh.dii_pct || 19.5, sh.retail_promoter_pct || 56.0],
+                labels: ['FII (Foreign Inst)', 'DII (Domestic Inst)', 'Retailers / Promoters'],
+                type: 'pie',
+                hole: 0.55,
+                marker: {
+                    colors: ['#3b82f6', '#10b981', '#f59e0b']
+                },
+                textinfo: 'percent',
+                textposition: 'inside',
+                hoverinfo: 'label+percent+value',
+                textfont: { size: 10, color: '#ffffff', family: 'monospace' }
+            }];
+
+            Plotly.newPlot('shareholders-pie', pieData, {
+                paper_bgcolor: 'transparent',
+                plot_bgcolor: 'transparent',
+                margin: { t: 10, r: 10, l: 10, b: 10 },
+                showlegend: false
+            }, { responsive: true, displayModeBar: false });
+        }
+
+        // =====================================================================
+        // AUTO-REFRESH: REAL-TIME SPOT PRICE & LIVE/CLOSED STATUS FOR ANALYZED STOCK
+        // =====================================================================
+        async function refreshStockLiveSpot() {
+            if (!currentSymbol) return;
+            try {
+                const res = await fetch(`/api/bot/quote?symbol=${encodeURIComponent(currentSymbol)}&name=${encodeURIComponent(currentSymbol)}`);
+                if (!res.ok) return;
+                const q = await res.json();
+                if (!q || q.error) return;
+
+                // 1. Update spot price
+                const spotEl = document.getElementById('stock-spot-price');
+                if (spotEl && q.spot_price > 0) {
+                    spotEl.innerText = Number(q.spot_price).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                }
+
+                // 2. Update day change
+                const chgEl = document.getElementById('stock-day-change');
+                if (chgEl) {
+                    const chg = Number(q.change_pct);
+                    const sign = chg >= 0 ? '+' : '';
+                    chgEl.innerText = `${sign}${chg.toFixed(2)}%`;
+                    chgEl.className = `text-sm font-bold ${chg >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+                }
+
+                // 3. Update Live / Closed badge
+                const liveBadge = document.getElementById('stock-live-badge');
+                if (liveBadge) {
+                    if (q.is_live) {
+                        liveBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>LIVE';
+                        liveBadge.className = 'flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-mono border font-semibold bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                    } else {
+                        liveBadge.innerHTML = '<span class="w-2 h-2 rounded-full bg-rose-500"></span>CLOSED';
+                        liveBadge.className = 'flex items-center gap-1.5 text-xs px-2.5 py-0.5 rounded-full font-mono border font-semibold bg-rose-500/10 text-rose-400 border-rose-500/30';
+                    }
+                }
+            } catch (err) {
+                /* silent poll error */
+            }
+        }
+
+        // Start stock spot auto-poll every 4 seconds
+        refreshStockLiveSpot();
+        setInterval(refreshStockLiveSpot, 4000);
+
         {% endif %}
     </script>
 </body>

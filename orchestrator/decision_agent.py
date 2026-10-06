@@ -1,9 +1,11 @@
 import os
-from .risk_calculator import calculate_segmented_trade_plan
-from fundamental_worker import analyze_fundamentals
-from quant_worker import predict_stock_trend
+import sys
 
-# Optional Groq client import
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+from fundamental_worker.rag_search import run_fundamental_agent
+from quant_worker.predictor import run_quant_analysis
+
 try:
     from groq import Groq
 
@@ -12,128 +14,118 @@ except ImportError:
     HAS_GROQ = False
 
 
-def generate_llm_trade_rationale(
-    symbol: str,
-    current_price: float,
-    trade_plan: dict,
-    quant_signal: dict,
-    fundamental_signal: dict,
-) -> str:
-    """Uses Groq Llama-3.3-70B to synthesize a professional trade rationale from
+def calculate_trade_plan(quant_data: dict, fund_data: dict) -> dict:
+    spot = quant_data.get("current_price", 100.0)
+    forecast_return = quant_data.get("forecasted_return_pct", 0.0)
+    rsi = quant_data.get("technical_indicators", {}).get("rsi_14", 50.0)
+    volatility = quant_data.get("technical_indicators", {}).get(
+        "volatility_20d", 0.02
+    )
 
-    Python metrics.
-    """
-    api_key = os.getenv("GROQ_API_KEY")
+    if forecast_return >= 1.5 and rsi < 70:
+        signal = "BUY"
+        win_prob = min(
+            88.0, 65.0 + (forecast_return * 2.5) + ((70 - rsi) * 0.2)
+        )
+    elif forecast_return <= -1.5 and rsi > 30:
+        signal = "SELL"
+        win_prob = min(
+            85.0, 60.0 + (abs(forecast_return) * 2.5) + ((rsi - 30) * 0.2)
+        )
+    else:
+        signal = "NO CALL"
+        win_prob = 50.0
 
-    # Fallback if no API key or groq library is not installed
-    if not HAS_GROQ or not api_key:
-        first_target = (
-            trade_plan["targets"][0]["target_price"]
-            if trade_plan["targets"]
-            else "N/A"
-        )
-        rev_growth = fundamental_signal.get("financials", {}).get(
-            "revenue_yoy_pct", 0
-        )
-        return (
-            f"Automated Analysis for {symbol}: Trade signal is"
-            f" {trade_plan['signal']} with a winning probability of"
-            f" {trade_plan['win_probability_pct']}%. Target 1 is set at"
-            f" ${first_target} with YoY Revenue growth at {rev_growth}%."
-        )
+    atr_approx = spot * volatility * 1.5
+    stop_loss = (
+        round(spot - (atr_approx * 1.2), 2)
+        if signal == "BUY"
+        else round(spot + (atr_approx * 1.2), 2)
+    )
 
-    try:
-        client = Groq(api_key=api_key)
-        prompt = f"""
-You are an institutional quant risk analyst. Synthesize a concise 2-3 sentence trade rationale based on these exact python-calculated metrics:
-- Ticker Symbol: {symbol}
-- Current Spot Price: ${current_price}
-- Calculated Signal: {trade_plan['signal']}
-- Win Probability: {trade_plan['win_probability_pct']}%
-- Segmented Targets: {trade_plan['targets']}
-- Stop Loss: ${trade_plan.get('stop_loss')}
-- Breakeven Range: {trade_plan.get('breakeven_range')}
-- Technical RSI (14): {quant_signal.get('technical_indicators', {}).get('rsi_14')}
-- YoY Revenue Growth: {fundamental_signal.get('financials', {}).get('revenue_yoy_pct')}%
-- Business Profile: {fundamental_signal.get('company_profile', {}).get('business_summary')}
+    targets = []
+    if signal in ["BUY", "SELL"]:
+        direction = 1 if signal == "BUY" else -1
+        t_configs = [
+            (1, "High (80-90%)", round(atr_approx * 1.0, 2)),
+            (2, "Medium (65-75%)", round(atr_approx * 2.0, 2)),
+            (3, "Moderate (50-60%)", round(atr_approx * 3.5, 2)),
+            (4, "High Risk (35-45%)", round(atr_approx * 5.0, 2)),
+        ]
+        for num, tier, pts in t_configs:
+            targets.append(
+                {
+                    "target_number": num,
+                    "probability_tier": tier,
+                    "target_price": round(spot + (direction * pts), 2),
+                    "points_gain": pts,
+                    "return_pct": round((pts / spot) * 100, 2),
+                }
+            )
 
-Explain concisely why this setup (targets & stop loss or breakeven) is justified based on the technicals and fundamentals.
-"""
-        response = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.3,
-            max_tokens=150,
-        )
-        return response.choices[0].message.content.strip()
-    except Exception as e:
-        print(f"LLM API Call Exception: {e}")
-        return trade_plan.get("rationale", "Rationale generation unavailable.")
+    return {
+        "signal": signal,
+        "win_probability_pct": round(win_prob, 1),
+        "stop_loss": stop_loss if signal != "NO CALL" else None,
+        "risk_reward_ratio": (
+            round(
+                targets[0]["points_gain"] / (abs(spot - stop_loss) + 1e-9), 2
+            )
+            if targets
+            else 1.0
+        ),
+        "breakeven_range": (
+            round(spot * 0.005, 2) if signal == "NO CALL" else None
+        ),
+        "targets": targets,
+        "rationale": "",
+    }
 
 
 def get_investment_recommendation(symbol: str) -> dict:
-    """Main Orchestrator Entrypoint: Combines Worker 1 (Quant) and Worker 2
+    quant_data = run_quant_analysis(symbol)
+    fund_data = run_fundamental_agent(symbol)
+    trade_plan = calculate_trade_plan(quant_data, fund_data)
 
-    (Fundamentals), calculates segmented targets/stop loss, and passes
-    everything to the LLM to generate the final trade rationale.
-    """
-    symbol = symbol.strip().upper()
-
-    # 1. Fetch Worker 1 (Quant LSTM Signal)
-    quant_signal = predict_stock_trend(symbol, days=30)
-    current_price = quant_signal.get("current_price", 0.0)
-    forecast_trajectory = quant_signal.get("forecast_trajectory", [])
-    tech = quant_signal.get("technical_indicators", {})
-    volatility = tech.get("volatility_20d", 0.015)
-
-    # 2. Fetch Worker 2 (Fundamental & RAG Signal)
-    fundamental_signal = analyze_fundamentals(symbol)
-    financials = fundamental_signal.get("financials", {})
-    rev_growth = financials.get("revenue_yoy_pct", 0.0)
-
-    # 3. Evaluate Win Probability Score
-    rsi = tech.get("rsi_14", 50.0)
-    ret_pct = quant_signal.get("forecasted_return_pct", 0.0)
-
-    base_confidence = 50.0
-    if ret_pct > 3.0:
-        base_confidence += 20.0
-    elif ret_pct < -3.0:
-        base_confidence -= 20.0
-
-    if rev_growth > 5.0:
-        base_confidence += 15.0
-    elif rev_growth < -5.0:
-        base_confidence -= 15.0
-
-    if 30 <= rsi <= 65:
-        base_confidence += 10.0
-
-    win_probability = min(92.0, max(35.0, round(base_confidence, 1)))
-
-    # 4. Calculate Segmented Targets & Stop Loss (Python Math Engine)
-    trade_plan = calculate_segmented_trade_plan(
-        current_price=current_price,
-        forecast_trajectory=forecast_trajectory,
-        volatility=volatility,
-        win_probability=win_probability,
+    api_key = os.getenv("GROQ_API_KEY","")
+    prompt = (
+        f"You are a quantitative trade strategist. Analyze {symbol}: "
+        f"Spot {quant_data.get('current_price')}, Forecast Return {quant_data.get('forecasted_return_pct')}%, "
+        f"RSI {quant_data.get('technical_indicators', {}).get('rsi_14')}. "
+        f"Trade Signal: {trade_plan['signal']}. Write 2-3 concise sentences explaining the rationale behind this call. "
+        f"Do not use dollar ($) signs."
     )
 
-    # 5. Connect LLM for Rationale Synthesis
-    llm_rationale = generate_llm_trade_rationale(
-        symbol=symbol,
-        current_price=current_price,
-        trade_plan=trade_plan,
-        quant_signal=quant_signal,
-        fundamental_signal=fundamental_signal,
-    )
-
-    # Attach LLM rationale
-    trade_plan["rationale"] = llm_rationale
+    if HAS_GROQ and api_key:
+        try:
+            client = Groq(api_key=api_key)
+            resp = client.chat.completions.create(
+                model="openai/gpt-oss-120b",
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.3,
+                max_tokens=150,
+            )
+            trade_plan["rationale"] = resp.choices[0].message.content.strip()
+        except Exception as e:
+            trade_plan["rationale"] = (
+                f"Trade call based on 30D forecast ({quant_data.get('forecasted_return_pct')}%) "
+                f"and RSI ({quant_data.get('technical_indicators', {}).get('rsi_14')})."
+            )
+    else:
+        trade_plan["rationale"] = (
+            f"Trade call based on 30D forecast ({quant_data.get('forecasted_return_pct')}%) "
+            f"and RSI ({quant_data.get('technical_indicators', {}).get('rsi_14')})."
+        )
 
     return {
         "symbol": symbol,
-        "quant_summary": quant_signal,
-        "fundamental_summary": fundamental_signal,
+        "quant_summary": quant_data,
+        "fundamental_summary": fund_data,
         "trade_plan": trade_plan,
     }
+
+
+if __name__ == "__main__":
+    # Quick execution test
+    res = get_investment_recommendation("AAPL")
+    print(res["trade_plan"])

@@ -5,7 +5,7 @@ import yfinance as yf
 
 # Initialize persistent ChromaDB storage in the project root
 CHROMA_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), "chroma_db"
+    os.path.dirname(os.path.dirname(__file__)), ".chroma_db"
 )
 
 
