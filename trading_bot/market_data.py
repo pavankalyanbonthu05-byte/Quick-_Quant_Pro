@@ -313,9 +313,16 @@ def search_tradingview_instruments(query: str):
     return results[:8]
 
 
+_INSTRUMENT_QUOTE_CACHE = {}
+
 def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
     """Returns real-time underlying spot price, contract LTP, % change, and Live/Closed market status."""
     sym = symbol.strip().upper()
+    now = time.time()
+    if sym in _INSTRUMENT_QUOTE_CACHE:
+        cached_data, cached_ts = _INSTRUMENT_QUOTE_CACHE[sym]
+        if now - cached_ts < 5:
+            return cached_data
 
     # 1. Indian index options or futures
     if any(k in sym for k in ["NIFTY", "BANKNIFTY", "FINNIFTY"]):
@@ -327,9 +334,9 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
         chg_pct = 0.0
         try:
             t = yf.Ticker(base_symbol)
-            fast = t.fast_info
-            p = getattr(fast, "last_price", None)
-            prev = getattr(fast, "previous_close", None)
+            fast = getattr(t, "fast_info", None)
+            p = getattr(fast, "last_price", None) if fast else None
+            prev = getattr(fast, "previous_close", None) if fast else None
             if p:
                 spot_price = round(float(p), 2)
             if p and prev:
@@ -346,7 +353,7 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
             contract_price = spot_price
 
         lot_size = INDIAN_LOT_SIZES.get(index_key, 25)
-        return {
+        res = {
             "symbol": sym,
             "name": name or sym,
             "spot_price": spot_price,
@@ -356,6 +363,8 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
             "market_label": "NSE / NFO",
             "lot_size": lot_size
         }
+        _INSTRUMENT_QUOTE_CACHE[sym] = (res, now)
+        return res
 
     # 2. General equities, commodities, forex
     is_live = is_indian_market_open() if (sym.endswith(".NS") or sym.endswith(".BO")) else is_us_market_open()
@@ -365,9 +374,9 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
     chg_pct = 0.0
     try:
         t = yf.Ticker(sym)
-        fast = t.fast_info
-        p = getattr(fast, "last_price", None)
-        prev = getattr(fast, "previous_close", None)
+        fast = getattr(t, "fast_info", None)
+        p = getattr(fast, "last_price", None) if fast else None
+        prev = getattr(fast, "previous_close", None) if fast else None
         if p:
             price = round(float(p), 2)
         if p and prev:
@@ -375,8 +384,7 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
     except Exception:
         pass
 
-    lot_info = resolve_instrument_lot_size(sym)
-    return {
+    res = {
         "symbol": sym,
         "name": name or sym,
         "spot_price": price,
@@ -384,6 +392,8 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
         "change_pct": chg_pct,
         "is_live": is_live,
         "market_label": market_label,
-        "lot_size": lot_info["lot_size"]
+        "lot_size": 1
     }
+    _INSTRUMENT_QUOTE_CACHE[sym] = (res, now)
+    return res
 
