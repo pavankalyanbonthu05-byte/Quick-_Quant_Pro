@@ -72,15 +72,21 @@ Return ONLY the numbers of the top 5 articles in order of priority (e.g. 1, 4, 2
         return raw_articles[:5]
 
 
+_GLOBAL_NEWS_CACHE = {"data": None, "ts": 0}
+
 def fetch_and_prioritize_global_news() -> list:
     """Extracts top web market news, prioritizes via LLM, and stores in ChromaDB RAG."""
+    now = time.time()
+    if _GLOBAL_NEWS_CACHE["data"] and (now - _GLOBAL_NEWS_CACHE["ts"]) < 60:
+        return _GLOBAL_NEWS_CACHE["data"]
+
     raw_news = []
 
     # Extract news from multiple web benchmarks
     for symbol in ["SPY", "QQQ", "GC=F"]:
         try:
             t = yf.Ticker(symbol)
-            for item in (t.news or [])[:5]:
+            for item in (getattr(t, "news", []) or [])[:4]:
                 content = item.get("content", {})
                 title = content.get("title") or item.get("title")
                 if not title:
@@ -105,6 +111,8 @@ def fetch_and_prioritize_global_news() -> list:
 
     # Prioritize using openai/gpt-oss-120b
     prioritized_news = prioritize_news_with_llm(raw_news)
+    _GLOBAL_NEWS_CACHE["data"] = prioritized_news
+    _GLOBAL_NEWS_CACHE["ts"] = now
 
     # Store/Upsert in ChromaDB RAG
     if global_news_col:

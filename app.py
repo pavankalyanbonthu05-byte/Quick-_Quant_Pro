@@ -1,5 +1,6 @@
 import os
 import sys
+import time
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, session
 import yfinance as yf
@@ -68,27 +69,33 @@ MACRO_TICKERS = [
 ]
 
 
+_MACRO_CACHE = {"data": None, "ts": 0}
+
 def fetch_macro_overview():
+    now = time.time()
+    if _MACRO_CACHE["data"] and (now - _MACRO_CACHE["ts"]) < 20:
+        return _MACRO_CACHE["data"]
+
     overview = []
     for item in MACRO_TICKERS:
         is_live = is_indian_market_open() if item["market"] == "INDIAN" else is_us_market_open()
         try:
             t = yf.Ticker(item["symbol"])
-            fast = t.fast_info
+            fast = getattr(t, "fast_info", None)
             last_price = (
                 getattr(fast, "last_price", None)
                 or getattr(fast, "previous_close", 0.0)
-            )
-            prev_close = getattr(fast, "previous_close", None) or last_price
-            chg_points = last_price - prev_close if prev_close else 0.0
+            ) if fast else 0.0
+            prev_close = getattr(fast, "previous_close", None) or last_price if fast else 0.0
+            chg_points = (last_price - prev_close) if prev_close else 0.0
             chg_pct = (chg_points / prev_close) * 100 if prev_close else 0.0
             overview.append(
                 {
                     "name": item["name"],
                     "symbol": item["symbol"],
-                    "price": round(float(last_price), 2),
-                    "change_points": round(float(chg_points), 2),
-                    "change_pct": round(float(chg_pct), 2),
+                    "price": round(float(last_price or 0.0), 2),
+                    "change_points": round(float(chg_points or 0.0), 2),
+                    "change_pct": round(float(chg_pct or 0.0), 2),
                     "is_live": is_live,
                     "market": item["market"]
                 }
@@ -105,6 +112,8 @@ def fetch_macro_overview():
                     "market": item["market"]
                 }
             )
+    _MACRO_CACHE["data"] = overview
+    _MACRO_CACHE["ts"] = now
     return overview
 
 
