@@ -13,10 +13,28 @@ def get_chroma_collection():
     """Initializes or connects to local ChromaDB with graceful embedding fallback and minimal RAM."""
     try:
         from chromadb.config import Settings
+        from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
+        import numpy as np
+
+        class LightweightEmbedding(EmbeddingFunction):
+            def __call__(self, input: Documents) -> Embeddings:
+                embeddings = []
+                for text in input:
+                    vec = np.zeros(64, dtype=np.float32)
+                    for i, ch in enumerate(text[:128]):
+                        vec[i % 64] += ord(ch)
+                    norm = np.linalg.norm(vec)
+                    if norm > 0:
+                        vec /= norm
+                    embeddings.append(vec.tolist())
+                return embeddings
+
         client = chromadb.EphemeralClient(
             settings=Settings(anonymized_telemetry=False, allow_reset=True)
         )
-        return client.get_or_create_collection(name="company_histories")
+        return client.get_or_create_collection(
+            name="company_histories", embedding_function=LightweightEmbedding()
+        )
     except Exception:
         client = chromadb.Client()
         return client.get_or_create_collection(name="company_histories")

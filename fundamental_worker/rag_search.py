@@ -21,12 +21,33 @@ stock_fund_col = None
 if HAS_CHROMADB:
     try:
         from chromadb.config import Settings
-        # EphemeralClient uses lightweight in-memory RAM (< 20MB) with no disk lock/telemetry overhead
+        from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
+        import numpy as np
+
+        class LightweightEmbedding(EmbeddingFunction):
+            """Fast hash-based embedding (384-dim, 0 MB disk, 0 network download)."""
+            def __call__(self, input: Documents) -> Embeddings:
+                embeddings = []
+                for text in input:
+                    vec = np.zeros(64, dtype=np.float32)
+                    for i, ch in enumerate(text[:128]):
+                        vec[i % 64] += ord(ch)
+                    norm = np.linalg.norm(vec)
+                    if norm > 0:
+                        vec /= norm
+                    embeddings.append(vec.tolist())
+                return embeddings
+
+        _light_emb = LightweightEmbedding()
         chroma_client = chromadb.EphemeralClient(
             settings=Settings(anonymized_telemetry=False, allow_reset=True)
         )
-        global_news_col = chroma_client.get_or_create_collection(name="global_news")
-        stock_fund_col = chroma_client.get_or_create_collection(name="stock_fundamentals")
+        global_news_col = chroma_client.get_or_create_collection(
+            name="global_news", embedding_function=_light_emb
+        )
+        stock_fund_col = chroma_client.get_or_create_collection(
+            name="stock_fundamentals", embedding_function=_light_emb
+        )
     except Exception as e:
         print(f"⚠️ ChromaDB Init Warning: {e}")
 
