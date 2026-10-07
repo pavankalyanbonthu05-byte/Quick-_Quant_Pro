@@ -10,16 +10,19 @@ CHROMA_PATH = os.path.join(
 
 
 def get_chroma_collection():
-    """Initializes or connects to local ChromaDB with open-source sentence-transformers embeddings."""
+    """Initializes or connects to local ChromaDB with graceful embedding fallback."""
     os.makedirs(CHROMA_PATH, exist_ok=True)
     client = chromadb.PersistentClient(path=CHROMA_PATH)
-    # Lightweight CPU-friendly embedding model (384-dim, ~80MB, $0 cost)
-    emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-        model_name="all-MiniLM-L6-v2"
-    )
-    return client.get_or_create_collection(
-        name="company_histories", embedding_function=emb_fn
-    )
+    try:
+        emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
+            model_name="all-MiniLM-L6-v2"
+        )
+        return client.get_or_create_collection(
+            name="company_histories", embedding_function=emb_fn
+        )
+    except Exception:
+        # Lightweight zero-RAM fallback using ChromaDB's default embedding
+        return client.get_or_create_collection(name="company_histories")
 
 
 def query_or_index_company_history(symbol: str) -> dict:

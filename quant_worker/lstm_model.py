@@ -1,7 +1,12 @@
-import tensorflow as tf
-from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
-from tensorflow.keras.layers import Dense, Dropout, LSTM
-from tensorflow.keras.models import Sequential
+try:
+    import tensorflow as tf
+    from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
+    from tensorflow.keras.layers import Dense, Dropout, LSTM
+    from tensorflow.keras.models import Sequential
+    HAS_TF = True
+except ImportError:
+    HAS_TF = False
+    Sequential = None
 
 
 def create_lstm_model(input_shape: tuple[int, int]) -> Sequential:

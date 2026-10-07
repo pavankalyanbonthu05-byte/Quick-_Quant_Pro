@@ -1,5 +1,6 @@
-# Web & API Framework
+# Web & Production Server
 flask>=2.3.3
+gunicorn>=21.2.0
 werkzeug>=3.0.0
 pydantic>=2.3.0
 pydantic-settings>=2.0.0
@@ -11,18 +12,16 @@ pyotp>=2.8.0
 duckduckgo_search>=5.0.0
 requests>=2.31.0
 
-# Numerical, Quant & Machine Learning
+# Numerical, Quant & Analytics
 pandas>=2.0.0
 numpy>=1.24.0
 scipy>=1.10.0
 scikit-learn>=1.3.0
-tensorflow>=2.16.1
 joblib>=1.3.2
 
-# LLM Orchestration & RAG Vector Database
+# LLM Orchestration & Vector Store
 groq>=0.9.0
 chromadb>=0.4.0
-sentence-transformers>=2.2.0
 
 # Interactive Visualizations
 plotly>=5.15.0
