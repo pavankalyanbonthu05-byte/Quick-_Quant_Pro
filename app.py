@@ -78,13 +78,8 @@ DEFAULT_MACRO_DATA = [
 
 _MACRO_CACHE = {"data": list(DEFAULT_MACRO_DATA), "ts": 0}
 
-def fetch_macro_overview():
-    now = time.time()
-    # Fast return: If cached within 60s, return immediately
-    if _MACRO_CACHE["data"] and (now - _MACRO_CACHE["ts"]) < 60:
-        return _MACRO_CACHE["data"]
-
-    # Quick non-blocking attempt: If rate-limited or error, fallback to default benchmarks instantly
+def _update_macro_in_background():
+    """Background worker to fetch macro data without blocking the HTTP request thread."""
     overview = []
     try:
         for item in MACRO_TICKERS:
@@ -110,18 +105,27 @@ def fetch_macro_overview():
             except Exception:
                 pass
             if not price:
-                # Use default fallback for this item
                 fallback = next((d for d in DEFAULT_MACRO_DATA if d["symbol"] == item["symbol"]), None)
                 if fallback:
                     cp = dict(fallback)
                     cp["is_live"] = is_live
                     overview.append(cp)
+        if overview:
+            _MACRO_CACHE["data"] = overview
+            _MACRO_CACHE["ts"] = time.time()
     except Exception:
-        overview = list(DEFAULT_MACRO_DATA)
+        pass
 
-    if overview:
-        _MACRO_CACHE["data"] = overview
-        _MACRO_CACHE["ts"] = now
+
+def fetch_macro_overview():
+    """Instantly returns cached/fallback macro data. Refreshes asynchronously."""
+    now = time.time()
+    # If cache is older than 60s, trigger a background refresh thread
+    if (now - _MACRO_CACHE["ts"]) > 60:
+        _MACRO_CACHE["ts"] = now  # Debounce updates
+        import threading
+        t = threading.Thread(target=_update_macro_in_background, daemon=True)
+        t.start()
     return _MACRO_CACHE["data"] or DEFAULT_MACRO_DATA
 
 

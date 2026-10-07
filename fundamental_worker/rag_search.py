@@ -96,21 +96,23 @@ Return ONLY the numbers of the top 5 articles in order of priority (e.g. 1, 4, 2
         return raw_articles[:5]
 
 
-_GLOBAL_NEWS_CACHE = {"data": None, "ts": 0}
+DEFAULT_GLOBAL_NEWS = [
+    {"title": "Global Central Banks Monitor Interest Rate Adjustments", "publisher": "Reuters", "link": "https://www.reuters.com", "summary": "Equities and benchmarks shift as global monetary policies align with inflation targets."},
+    {"title": "Tech and Energy Sectors See Surge in Volume", "publisher": "Bloomberg", "link": "https://www.bloomberg.com", "summary": "Large-cap indices register strong institutional volume following quarterly filings."},
+    {"title": "Crude Oil and Gold Consolidate Near Key Technical Levels", "publisher": "Financial Times", "link": "https://www.ft.com", "summary": "Commodity desks track macroeconomic indicators and currency volatility."},
+    {"title": "Asian and European Markets Trade Mixed on Export Data", "publisher": "CNBC", "link": "https://www.cnbc.com", "summary": "Regional indices observe defensive positioning amid foreign institutional rotation."}
+]
 
-def fetch_and_prioritize_global_news() -> list:
-    """Extracts top web market news, prioritizes via LLM, and stores in ChromaDB RAG."""
+_GLOBAL_NEWS_CACHE = {"data": list(DEFAULT_GLOBAL_NEWS), "ts": 0}
+
+def _refresh_news_in_background():
+    """Background thread to poll Yahoo Finance news and prioritize without blocking web worker."""
     now = time.time()
-    if _GLOBAL_NEWS_CACHE["data"] and (now - _GLOBAL_NEWS_CACHE["ts"]) < 60:
-        return _GLOBAL_NEWS_CACHE["data"]
-
     raw_news = []
-
-    # Extract news from multiple web benchmarks
     for symbol in ["SPY", "QQQ", "GC=F"]:
         try:
             t = yf.Ticker(symbol)
-            for item in (getattr(t, "news", []) or [])[:4]:
+            for item in (getattr(t, "news", []) or [])[:3]:
                 content = item.get("content", {})
                 title = content.get("title") or item.get("title")
                 if not title:
@@ -127,29 +129,34 @@ def fetch_and_prioritize_global_news() -> list:
         except Exception:
             continue
 
-    if not raw_news:
-        raw_news = [
-            {"title": "Global Central Banks Monitor Interest Rate Adjustments", "publisher": "Reuters", "link": "#", "summary": "Equities and benchmarks shift as global monetary policies align with inflation targets."},
-            {"title": "Tech and Energy Sectors See Surge in Volume", "publisher": "Bloomberg", "link": "#", "summary": "Large-cap indices register strong institutional volume following quarterly filings."}
-        ]
-
-    # Prioritize using openai/gpt-oss-120b
-    prioritized_news = prioritize_news_with_llm(raw_news)
-    _GLOBAL_NEWS_CACHE["data"] = prioritized_news
-    _GLOBAL_NEWS_CACHE["ts"] = now
-
-    # Store/Upsert in ChromaDB RAG
-    if global_news_col:
+    if raw_news:
         try:
-            docs = [f"{item['title']} - {item['summary']}" for item in prioritized_news]
-            metas = [{"title": item["title"], "publisher": item["publisher"], "link": item["link"], "summary": item["summary"]} for item in prioritized_news]
-            ids = [f"global_news_{idx}" for idx in range(len(prioritized_news))]
-            global_news_col.upsert(documents=docs, metadatas=metas, ids=ids)
-            print("[RAG] Global news stored in ChromaDB RAG!")
-        except Exception as e:
-            print(f"[RAG NOTE] Global News ChromaDB bypass: {e}")
+            prioritized_news = prioritize_news_with_llm(raw_news)
+        except Exception:
+            prioritized_news = raw_news[:5]
+        _GLOBAL_NEWS_CACHE["data"] = prioritized_news
+        _GLOBAL_NEWS_CACHE["ts"] = now
 
-    return prioritized_news
+        if global_news_col:
+            try:
+                docs = [f"{item['title']} - {item['summary']}" for item in prioritized_news]
+                metas = [{"title": item["title"], "publisher": item["publisher"], "link": item["link"], "summary": item["summary"]} for item in prioritized_news]
+                ids = [f"global_news_{idx}" for idx in range(len(prioritized_news))]
+                global_news_col.upsert(documents=docs, metadatas=metas, ids=ids)
+            except Exception:
+                pass
+
+
+def fetch_and_prioritize_global_news() -> list:
+    """Instantly returns cached or baseline market news. Refreshes asynchronously."""
+    now = time.time()
+    if (now - _GLOBAL_NEWS_CACHE["ts"]) > 300:  # Refresh every 5 minutes
+        _GLOBAL_NEWS_CACHE["ts"] = now  # Debounce
+        import threading
+        t = threading.Thread(target=_refresh_news_in_background, daemon=True)
+        t.start()
+
+    return _GLOBAL_NEWS_CACHE["data"] or DEFAULT_GLOBAL_NEWS
 
 
 def run_fundamental_agent(symbol: str) -> dict:
