@@ -1,7 +1,8 @@
+from .rag_search import run_fundamental_agent, fetch_and_prioritize_global_news
+
 try:
     from .graph import analyze_fundamentals
-except ImportError as e:
-    print(f"⚠️ Warning importing analyze_fundamentals: {e}")
-    analyze_fundamentals = None
+except ImportError:
+    analyze_fundamentals = run_fundamental_agent
 
-__all__ = ["analyze_fundamentals"]
+__all__ = ["analyze_fundamentals", "run_fundamental_agent", "fetch_and_prioritize_global_news"]

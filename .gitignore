@@ -33,3 +33,4 @@ chroma_db/
 .env
 *.key
 *.json
+.chroma_db/

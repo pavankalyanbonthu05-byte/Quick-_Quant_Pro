@@ -113,9 +113,9 @@ def fetch_and_prioritize_global_news() -> list:
             metas = [{"title": item["title"], "publisher": item["publisher"], "link": item["link"], "summary": item["summary"]} for item in prioritized_news]
             ids = [f"global_news_{idx}" for idx in range(len(prioritized_news))]
             global_news_col.upsert(documents=docs, metadatas=metas, ids=ids)
-            print("✅ Global news prioritized & stored in ChromaDB RAG!")
+            print("[RAG] Global news stored in ChromaDB RAG!")
         except Exception as e:
-            print(f"⚠️ ChromaDB Global News Ingest Warning: {e}")
+            print(f"[RAG NOTE] Global News ChromaDB bypass: {e}")
 
     return prioritized_news
 
