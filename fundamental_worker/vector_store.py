@@ -10,18 +10,15 @@ CHROMA_PATH = os.path.join(
 
 
 def get_chroma_collection():
-    """Initializes or connects to local ChromaDB with graceful embedding fallback."""
-    os.makedirs(CHROMA_PATH, exist_ok=True)
-    client = chromadb.PersistentClient(path=CHROMA_PATH)
+    """Initializes or connects to local ChromaDB with graceful embedding fallback and minimal RAM."""
     try:
-        emb_fn = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="all-MiniLM-L6-v2"
+        from chromadb.config import Settings
+        client = chromadb.EphemeralClient(
+            settings=Settings(anonymized_telemetry=False, allow_reset=True)
         )
-        return client.get_or_create_collection(
-            name="company_histories", embedding_function=emb_fn
-        )
+        return client.get_or_create_collection(name="company_histories")
     except Exception:
-        # Lightweight zero-RAM fallback using ChromaDB's default embedding
+        client = chromadb.Client()
         return client.get_or_create_collection(name="company_histories")
 
 

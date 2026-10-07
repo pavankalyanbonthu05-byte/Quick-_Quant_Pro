@@ -20,8 +20,11 @@ stock_fund_col = None
 
 if HAS_CHROMADB:
     try:
-        db_path = os.path.join(os.getcwd(), ".chroma_db")
-        chroma_client = chromadb.PersistentClient(path=db_path)
+        from chromadb.config import Settings
+        # EphemeralClient uses lightweight in-memory RAM (< 20MB) with no disk lock/telemetry overhead
+        chroma_client = chromadb.EphemeralClient(
+            settings=Settings(anonymized_telemetry=False, allow_reset=True)
+        )
         global_news_col = chroma_client.get_or_create_collection(name="global_news")
         stock_fund_col = chroma_client.get_or_create_collection(name="stock_fundamentals")
     except Exception as e:
