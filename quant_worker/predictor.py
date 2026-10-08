@@ -3,7 +3,6 @@ import json
 import urllib.request
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 
 def fetch_ohlcv_direct(symbol: str) -> pd.DataFrame:
@@ -60,28 +59,9 @@ def run_quant_analysis(symbol: str) -> dict:
         # 1. Primary: Direct high-speed chart API (0.2s, no crumb needed)
         df = fetch_ohlcv_direct(symbol)
 
-        # 2. Fallback to yfinance with tight 2.0s timeout if direct API had no data
-        t = None
-        if df.empty or len(df) < 5:
-            try:
-                t = yf.Ticker(symbol)
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-                    fut = executor.submit(lambda: t.history(period="1y"))
-                    df = fut.result(timeout=2.0)
-            except Exception:
-                df = pd.DataFrame()
-
-        # 3. Fallback: Fast info or baseline if both failed
+        # 2. Fallback baseline if direct API had no data
         if df is None or df.empty or len(df) < 5:
             fast_p = 100.0
-            try:
-                if t is None:
-                    t = yf.Ticker(symbol)
-                fast = getattr(t, "fast_info", None)
-                if fast and getattr(fast, "last_price", None):
-                    fast_p = float(fast.last_price)
-            except Exception:
-                pass
 
             return {
                 "current_price": round(fast_p, 2),

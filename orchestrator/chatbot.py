@@ -1,7 +1,6 @@
 import os
 import re
 import sys
-import yfinance as yf
 
 # Ensure UTF-8 console output on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -49,34 +48,24 @@ def _fetch_market_context(symbol: str) -> str:
         return "Scope: Global Market Query"
 
     try:
-        t = yf.Ticker(symbol)
-        last_price = None
-        prev_close = None
+        import urllib.request, json
+        c_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+        c_req = urllib.request.Request(c_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(c_req, timeout=1.5) as c_res:
+            meta = json.loads(c_res.read().decode("utf-8")).get("chart", {}).get("result", [{}])[0].get("meta", {})
+            last_price = meta.get("regularMarketPrice")
+            prev_close = meta.get("chartPreviousClose", last_price) or last_price
 
-        # Try fast_info first (fastest and cleanest)
-        try:
-            fast = t.fast_info
-            last_price = getattr(fast, "last_price", None)
-            prev_close = getattr(fast, "previous_close", None)
-        except Exception:
-            pass
-
-        # Fallback to history if fast_info is incomplete
-        if not last_price:
-            hist = t.history(period="2d")
-            if not hist.empty:
-                last_price = float(hist["Close"].iloc[-1])
-                prev_close = float(hist["Close"].iloc[-2]) if len(hist) > 1 else last_price
-
-        if last_price:
-            chg_pct = round(((last_price - prev_close) / prev_close) * 100, 2) if prev_close else 0.0
-            direction = "+" if chg_pct >= 0 else ""
-            currency = "INR" if (".NS" in symbol or ".BO" in symbol) else ""
-            return (
-                f"Selected Ticker: {symbol} | Spot Price: {round(float(last_price), 2)} {currency} | "
-                f"Day Change: {direction}{chg_pct}%"
-            )
-
+            if last_price:
+                last_price = float(last_price)
+                prev_close = float(prev_close) if prev_close else last_price
+                chg_pct = round(((last_price - prev_close) / prev_close) * 100, 2) if prev_close else 0.0
+                direction = "+" if chg_pct >= 0 else ""
+                currency = "INR" if (".NS" in symbol or ".BO" in symbol) else ""
+                return (
+                    f"Selected Ticker: {symbol} | Spot Price: {round(float(last_price), 2)} {currency} | "
+                    f"Day Change: {direction}{chg_pct}%"
+                )
     except Exception as e:
         print(f"⚠️ [Robo] Context warning for {symbol}: {e}")
 

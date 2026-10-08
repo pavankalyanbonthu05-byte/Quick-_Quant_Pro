@@ -3,7 +3,6 @@ import sys
 import time
 from dotenv import load_dotenv
 from flask import Flask, jsonify, render_template, request, session
-import yfinance as yf
 
 # Ensure UTF-8 console output on Windows
 if hasattr(sys.stdout, "reconfigure"):
@@ -82,26 +81,33 @@ def _update_macro_in_background():
     """Background worker to fetch macro data without blocking the HTTP request thread."""
     overview = []
     try:
+        import urllib.request, json
         for item in MACRO_TICKERS:
             is_live = is_indian_market_open() if item["market"] == "INDIAN" else is_us_market_open()
             price = None
+            pts = 0.0
+            pct = 0.0
             try:
-                t = yf.Ticker(item["symbol"])
-                fast = getattr(t, "fast_info", None)
-                if fast and hasattr(fast, "last_price") and fast.last_price:
-                    price = float(fast.last_price)
-                    prev = float(getattr(fast, "previous_close", price) or price)
-                    pts = price - prev
-                    pct = (pts / prev * 100) if prev else 0.0
-                    overview.append({
-                        "name": item["name"],
-                        "symbol": item["symbol"],
-                        "price": round(price, 2),
-                        "change_points": round(pts, 2),
-                        "change_pct": round(pct, 2),
-                        "is_live": is_live,
-                        "market": item["market"]
-                    })
+                c_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{item['symbol']}?interval=1d&range=1d"
+                c_req = urllib.request.Request(c_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+                with urllib.request.urlopen(c_req, timeout=2.0) as c_res:
+                    meta = json.loads(c_res.read().decode("utf-8")).get("chart", {}).get("result", [{}])[0].get("meta", {})
+                    p = meta.get("regularMarketPrice")
+                    prev = meta.get("chartPreviousClose", p) or p
+                    if p:
+                        price = float(p)
+                        prev = float(prev) if prev else price
+                        pts = price - prev
+                        pct = (pts / prev * 100) if prev else 0.0
+                        overview.append({
+                            "name": item["name"],
+                            "symbol": item["symbol"],
+                            "price": round(price, 2),
+                            "change_points": round(pts, 2),
+                            "change_pct": round(pct, 2),
+                            "is_live": is_live,
+                            "market": item["market"]
+                        })
             except Exception:
                 pass
             if not price:
@@ -170,16 +176,20 @@ def api_search_stocks():
         return jsonify([])
     results = []
     try:
-        for quote in yf.Search(query, max_results=8).quotes:
-            results.append(
-                {
-                    "symbol": quote.get("symbol", ""),
-                    "name": quote.get("shortname")
-                    or quote.get("longname")
-                    or quote.get("symbol", ""),
-                    "exchange": quote.get("exchange", ""),
-                }
-            )
+        import urllib.request, json, urllib.parse
+        encoded_q = urllib.parse.quote(query)
+        s_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={encoded_q}&quotesCount=8"
+        s_req = urllib.request.Request(s_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(s_req, timeout=1.5) as s_res:
+            s_json = json.loads(s_res.read().decode("utf-8"))
+            for quote in s_json.get("quotes", []):
+                sym = quote.get("symbol")
+                if sym:
+                    results.append({
+                        "symbol": sym,
+                        "name": quote.get("shortname") or quote.get("longname") or sym,
+                        "exchange": quote.get("exchange", "")
+                    })
     except Exception:
         pass
     return jsonify(results[:8])

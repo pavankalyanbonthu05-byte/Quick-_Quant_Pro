@@ -1,6 +1,5 @@
 import os
 import time
-import yfinance as yf
 
 try:
     from groq import Groq
@@ -108,24 +107,27 @@ _GLOBAL_NEWS_CACHE = {"data": list(DEFAULT_GLOBAL_NEWS), "ts": 0}
 def _refresh_news_in_background():
     """Background thread to poll Yahoo Finance news and prioritize without blocking web worker."""
     now = time.time()
-    raw_news = []
-    for symbol in ["SPY", "QQQ", "GC=F"]:
+    # Extract headlines via fast Yahoo Search API without crumb requirement
+    for sym in ["SPY", "QQQ"]:
         try:
-            t = yf.Ticker(symbol)
-            for item in (getattr(t, "news", []) or [])[:3]:
-                content = item.get("content", {})
-                title = content.get("title") or item.get("title")
-                if not title:
-                    continue
-                publisher = content.get("provider", {}).get("displayName") or item.get("publisher", "Market News")
-                link = content.get("canonicalUrl", {}).get("url") or item.get("link", "#")
-                summary = content.get("summary") or item.get("summary", "")
-                raw_news.append({
-                    "title": title,
-                    "publisher": publisher,
-                    "link": link,
-                    "summary": (summary[:220] + "...") if len(summary) > 220 else summary
-                })
+            import urllib.request, json
+            s_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={sym}&newsCount=3"
+            s_req = urllib.request.Request(s_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(s_req, timeout=2.0) as s_res:
+                s_json = json.loads(s_res.read().decode("utf-8"))
+                for n_item in s_json.get("news", [])[:3]:
+                    title = n_item.get("title")
+                    if not title:
+                        continue
+                    publisher = n_item.get("publisher", "Market News")
+                    link = n_item.get("link", "#")
+                    summary = n_item.get("summary") or title
+                    raw_news.append({
+                        "title": title,
+                        "publisher": publisher,
+                        "link": link,
+                        "summary": (summary[:220] + "...") if len(summary) > 220 else summary
+                    })
         except Exception:
             continue
 

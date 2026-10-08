@@ -1,6 +1,5 @@
 import numpy as np
 import pandas as pd
-import yfinance as yf
 
 
 def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
@@ -16,12 +15,8 @@ def calculate_rsi(series: pd.Series, period: int = 14) -> pd.Series:
 
 def fetch_stock_data(symbol: str) -> tuple[pd.DataFrame, dict]:
     symbol = symbol.strip().upper()
-    # Direct 2-year fetch (avoids sequential retry loops over the network)
-    ticker = yf.Ticker(symbol)
-    try:
-        df = ticker.history(period="2y")
-    except Exception:
-        return pd.DataFrame(), {}
+    from .predictor import fetch_ohlcv_direct
+    df = fetch_ohlcv_direct(symbol)
 
     if df.empty or "Close" not in df.columns or len(df) < 30:
         return pd.DataFrame(), {}

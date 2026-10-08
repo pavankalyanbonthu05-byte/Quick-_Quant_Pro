@@ -145,27 +145,20 @@ def fetch_live_quote(asset_key: str):
         except Exception:
             pass
 
-    # 2. Fast-path yfinance (fast_info or history fallback)
+    # 2. Fast-path direct chart API (zero-latency, no crumb/rate-limit blocks)
     if price is None:
         try:
-            t = yf.Ticker(symbol)
-            fast = t.fast_info
-            price = getattr(fast, "last_price", None)
-            prev = getattr(fast, "previous_close", None)
-            if price and prev:
-                change_pct = round(((price - prev) / prev) * 100, 2)
-        except Exception:
-            pass
-
-    # 3. Fallback history
-    if price is None:
-        try:
-            t = yf.Ticker(symbol)
-            hist = t.history(period="1d", interval="1m")
-            if not hist.empty:
-                price = float(hist["Close"].iloc[-1])
-                open_p = float(hist["Open"].iloc[0])
-                change_pct = round(((price - open_p) / open_p) * 100, 2)
+            import urllib.request, json
+            c_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?interval=1d&range=1d"
+            c_req = urllib.request.Request(c_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(c_req, timeout=1.5) as c_res:
+                meta = json.loads(c_res.read().decode("utf-8")).get("chart", {}).get("result", [{}])[0].get("meta", {})
+                p = meta.get("regularMarketPrice")
+                prev = meta.get("chartPreviousClose", p) or p
+                if p:
+                    price = float(p)
+                    prev = float(prev) if prev else price
+                    change_pct = round(((price - prev) / prev) * 100, 2) if prev else 0.0
         except Exception:
             pass
 
@@ -333,14 +326,17 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
         spot_price = 25050.0 if index_key == "NIFTY" else (54100.0 if index_key == "BANKNIFTY" else 24000.0)
         chg_pct = 0.0
         try:
-            t = yf.Ticker(base_symbol)
-            fast = getattr(t, "fast_info", None)
-            p = getattr(fast, "last_price", None) if fast else None
-            prev = getattr(fast, "previous_close", None) if fast else None
-            if p:
-                spot_price = round(float(p), 2)
-            if p and prev:
-                chg_pct = round(((p - prev) / prev) * 100, 2)
+            import urllib.request, json
+            c_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{base_symbol}?interval=1d&range=1d"
+            c_req = urllib.request.Request(c_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+            with urllib.request.urlopen(c_req, timeout=1.5) as c_res:
+                meta = json.loads(c_res.read().decode("utf-8")).get("chart", {}).get("result", [{}])[0].get("meta", {})
+                p = meta.get("regularMarketPrice")
+                prev = meta.get("chartPreviousClose", p) or p
+                if p:
+                    spot_price = round(float(p), 2)
+                if p and prev:
+                    chg_pct = round(((float(p) - float(prev)) / float(prev)) * 100, 2)
         except Exception:
             pass
 
@@ -373,14 +369,17 @@ def get_instrument_live_quote(symbol: str, name: str = "") -> dict:
     price = 100.0
     chg_pct = 0.0
     try:
-        t = yf.Ticker(sym)
-        fast = getattr(t, "fast_info", None)
-        p = getattr(fast, "last_price", None) if fast else None
-        prev = getattr(fast, "previous_close", None) if fast else None
-        if p:
-            price = round(float(p), 2)
-        if p and prev:
-            chg_pct = round(((p - prev) / prev) * 100, 2)
+        import urllib.request, json
+        c_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?interval=1d&range=1d"
+        c_req = urllib.request.Request(c_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        with urllib.request.urlopen(c_req, timeout=1.5) as c_res:
+            meta = json.loads(c_res.read().decode("utf-8")).get("chart", {}).get("result", [{}])[0].get("meta", {})
+            p = meta.get("regularMarketPrice")
+            prev = meta.get("chartPreviousClose", p) or p
+            if p:
+                price = round(float(p), 2)
+            if p and prev:
+                chg_pct = round(((float(p) - float(prev)) / float(prev)) * 100, 2)
     except Exception:
         pass
 
