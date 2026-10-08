@@ -7,48 +7,9 @@ try:
 except ImportError:
     HAS_GROQ = False
 
-try:
-    import chromadb
-    HAS_CHROMADB = True
-except ImportError:
-    HAS_CHROMADB = False
-
-chroma_client = None
-global_news_col = None
-stock_fund_col = None
-
-if HAS_CHROMADB:
-    try:
-        from chromadb.config import Settings
-        from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
-        import numpy as np
-
-        class LightweightEmbedding(EmbeddingFunction):
-            """Fast hash-based embedding (384-dim, 0 MB disk, 0 network download)."""
-            def __call__(self, input: Documents) -> Embeddings:
-                embeddings = []
-                for text in input:
-                    vec = np.zeros(64, dtype=np.float32)
-                    for i, ch in enumerate(text[:128]):
-                        vec[i % 64] += ord(ch)
-                    norm = np.linalg.norm(vec)
-                    if norm > 0:
-                        vec /= norm
-                    embeddings.append(vec.tolist())
-                return embeddings
-
-        _light_emb = LightweightEmbedding()
-        chroma_client = chromadb.EphemeralClient(
-            settings=Settings(anonymized_telemetry=False, allow_reset=True)
-        )
-        global_news_col = chroma_client.get_or_create_collection(
-            name="global_news", embedding_function=_light_emb
-        )
-        stock_fund_col = chroma_client.get_or_create_collection(
-            name="stock_fundamentals", embedding_function=_light_emb
-        )
-    except Exception as e:
-        print(f"⚠️ ChromaDB Init Warning: {e}")
+# Lightweight In-Memory RAG store (0 MB C++ memory overhead)
+_GLOBAL_NEWS_RAG_STORE = []
+_STOCK_FUND_RAG_STORE = {}
 
 
 def prioritize_news_with_llm(raw_articles: list) -> list:
@@ -139,14 +100,8 @@ def _refresh_news_in_background():
         _GLOBAL_NEWS_CACHE["data"] = prioritized_news
         _GLOBAL_NEWS_CACHE["ts"] = now
 
-        if global_news_col:
-            try:
-                docs = [f"{item['title']} - {item['summary']}" for item in prioritized_news]
-                metas = [{"title": item["title"], "publisher": item["publisher"], "link": item["link"], "summary": item["summary"]} for item in prioritized_news]
-                ids = [f"global_news_{idx}" for idx in range(len(prioritized_news))]
-                global_news_col.upsert(documents=docs, metadatas=metas, ids=ids)
-            except Exception:
-                pass
+        global _GLOBAL_NEWS_RAG_STORE
+        _GLOBAL_NEWS_RAG_STORE = list(prioritized_news)
 
 
 def fetch_and_prioritize_global_news() -> list:
@@ -295,27 +250,12 @@ def run_fundamental_agent(symbol: str) -> dict:
     # Prioritize stock news using openai/gpt-oss-120b
     prioritized_stock_news = prioritize_news_with_llm(stock_news)
 
-    # Ingest stock fundamentals, history, and news into ChromaDB RAG
-    if stock_fund_col:
-        try:
-            ingest_doc = (
-                f"Stock History & Fundamentals for {symbol}:\n"
-                f"Business Summary: {long_summary[:300]}\n"
-                f"Performance: {history_summary}\n"
-                f"Shareholding: FII {shareholders['fii_pct']}%, DII {shareholders['dii_pct']}%, Retailers/Promoters {shareholders['retail_promoter_pct']}%\n"
-                f"Results: Revenue {financial_results['revenue']}, Net Income {financial_results['net_income']}, P/E {pe_ratio}\n"
-                f"YoY Growth: Rev {yoy_qoq_comparison['yoy_revenue_pct']}%, NI {yoy_qoq_comparison['yoy_net_income_pct']}%\n"
-                f"QoQ Growth: Rev {yoy_qoq_comparison['qoq_revenue_pct']}%, NI {yoy_qoq_comparison['qoq_net_income_pct']}%\n"
-                f"Top News: {prioritized_stock_news[0]['title'] if prioritized_stock_news else 'None'}"
-            )
-            stock_fund_col.upsert(
-                documents=[ingest_doc],
-                metadatas=[{"symbol": symbol, "source": "stock_history_rag", "has_history": "true"}],
-                ids=[f"fund_{symbol}"]
-            )
-            print(f"[RAG] Auto-ingested stock history and fundamentals for {symbol} into ChromaDB RAG!")
-        except Exception as e:
-            print(f"[RAG WARNING] ChromaDB Stock Ingest: {e}")
+    # Ingest stock fundamentals, history, and news into Lightweight RAG memory
+    _STOCK_FUND_RAG_STORE[symbol] = {
+        "history_summary": history_summary,
+        "business_summary": long_summary[:300],
+        "top_news": prioritized_stock_news[0]["title"] if prioritized_stock_news else "None"
+    }
 
     return {
         "company_profile": {"company_origin": long_summary[:400], "business_summary": long_summary[:160]},

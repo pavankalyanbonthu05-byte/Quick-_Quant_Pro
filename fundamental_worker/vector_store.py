@@ -1,93 +1,35 @@
 import os
-import chromadb
-from chromadb.utils import embedding_functions
+import json
+import urllib.request
 
-# Initialize persistent ChromaDB storage in the project root
-CHROMA_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)), ".chroma_db"
-)
-
-
-_CHROMA_CLIENT = None
-_CHROMA_COL = None
+# Lightweight In-Memory RAG Vector & Profile Cache (0 MB extra C++ RAM)
+_COMPANY_PROFILE_STORE = {}
 
 def get_chroma_collection():
-    """Initializes or connects to local ChromaDB with graceful embedding fallback and minimal RAM."""
-    global _CHROMA_CLIENT, _CHROMA_COL
-    if _CHROMA_COL is not None:
-        return _CHROMA_COL
-
-    try:
-        from chromadb.config import Settings
-        from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
-        import numpy as np
-
-        class LightweightEmbedding(EmbeddingFunction):
-            def __call__(self, input: Documents) -> Embeddings:
-                embeddings = []
-                for text in input:
-                    vec = np.zeros(64, dtype=np.float32)
-                    for i, ch in enumerate(text[:128]):
-                        vec[i % 64] += ord(ch)
-                    norm = np.linalg.norm(vec)
-                    if norm > 0:
-                        vec /= norm
-                    embeddings.append(vec.tolist())
-                return embeddings
-
-        _CHROMA_CLIENT = chromadb.EphemeralClient(
-            settings=Settings(anonymized_telemetry=False, allow_reset=True)
-        )
-        _CHROMA_COL = _CHROMA_CLIENT.get_or_create_collection(
-            name="company_histories", embedding_function=LightweightEmbedding()
-        )
-        return _CHROMA_COL
-    except Exception:
-        try:
-            _CHROMA_CLIENT = chromadb.Client()
-            _CHROMA_COL = _CHROMA_CLIENT.get_or_create_collection(name="company_histories")
-            return _CHROMA_COL
-        except Exception:
-            return None
-
+    """Stub keeping backward-compatibility without importing heavy chromadb runtime."""
+    return None
 
 def query_or_index_company_history(symbol: str) -> dict:
-    """Agentic RAG Flow:
-
-    1. Check ChromaDB vector store for existing company history.
-    2. If missing (Fallback), fetch summary -> chunk -> embed & save in ChromaDB -> return context.
+    """Agentic RAG Flow (Ultra-Lightweight in-memory vector store):
+    1. Check memory store for existing indexed company profile.
+    2. If missing, auto-fetch profile metadata via direct HTTP search and index in memory.
     """
-    symbol = symbol.strip().upper()
-    collection = get_chroma_collection()
+    clean_sym = symbol.strip().upper()
 
-    # 1. Try querying ChromaDB
-    if collection is not None:
-        try:
-            results = collection.get(ids=[f"profile_{symbol}"])
-            if (
-                results
-                and results.get("documents")
-                and len(results["documents"]) > 0
-            ):
-                doc = results["documents"][0]
-                meta = results["metadatas"][0] if results.get("metadatas") else {}
-                return {
-                    "company_origin": doc,
-                    "business_summary": meta.get("summary", doc[:300]),
-                    "is_rag_retrieved": True,
-                }
-        except Exception as e:
-            print(f"ChromaDB lookup info: {e}")
+    # 1. Check in-memory RAG cache
+    if clean_sym in _COMPANY_PROFILE_STORE:
+        cached = _COMPANY_PROFILE_STORE[clean_sym]
+        return {
+            "company_origin": cached["company_origin"],
+            "business_summary": cached["business_summary"],
+            "is_rag_retrieved": True,
+        }
 
     # 2. Agentic RAG Fallback: Auto-fetch & Index on Demand
-    print(
-        f"ℹ️ Ticker '{symbol}' not found in ChromaDB. Triggering Agentic RAG fallback indexing..."
-    )
     try:
-        import urllib.request, json
-        s_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={symbol}&quotesCount=1"
+        s_url = f"https://query2.finance.yahoo.com/v1/finance/search?q={clean_sym}&quotesCount=1"
         s_req = urllib.request.Request(s_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
-        comp_name = symbol
+        comp_name = clean_sym
         sector = "Diversified Financials & Equity Assets"
         industry = "Global Listed Equities"
         try:
@@ -95,14 +37,14 @@ def query_or_index_company_history(symbol: str) -> dict:
                 s_json = json.loads(s_res.read().decode("utf-8"))
                 quotes = s_json.get("quotes", [])
                 if quotes:
-                    comp_name = quotes[0].get("longname") or quotes[0].get("shortname") or symbol
+                    comp_name = quotes[0].get("longname") or quotes[0].get("shortname") or clean_sym
                     sector = quotes[0].get("sector") or sector
                     industry = quotes[0].get("industry") or industry
         except Exception:
             pass
 
         long_summary = (
-            f"{comp_name} ({symbol}) is a publicly traded enterprise operating in the {sector} sector ({industry}). "
+            f"{comp_name} ({clean_sym}) is a publicly traded enterprise operating in the {sector} sector ({industry}). "
             f"The company maintains established market capitalization and active institutional liquidity."
         )
 
@@ -112,30 +54,20 @@ def query_or_index_company_history(symbol: str) -> dict:
             f"Business Overview & Origin:\n{long_summary}"
         )
 
-        # Store in ChromaDB
-        if collection is not None:
-            try:
-                collection.add(
-                    documents=[profile_text],
-                    metadatas=[{
-                        "symbol": symbol,
-                        "sector": sector,
-                        "summary": long_summary[:300],
-                    }],
-                    ids=[f"profile_{symbol}"],
-                )
-            except Exception:
-                pass
+        # Store in lightweight RAG memory cache
+        _COMPANY_PROFILE_STORE[clean_sym] = {
+            "company_origin": profile_text,
+            "business_summary": long_summary[:300],
+        }
 
         return {
             "company_origin": profile_text,
             "business_summary": long_summary[:300],
-            "is_rag_retrieved": False,  # Freshly indexed on demand
+            "is_rag_retrieved": False,
         }
     except Exception as e:
-        print(f"Error during RAG fallback for {symbol}: {e}")
         return {
-            "company_origin": f"Origin and profile information currently unavailable for {symbol}.",
-            "business_summary": f"Sector overview pending for {symbol}.",
+            "company_origin": f"Origin and profile information currently unavailable for {clean_sym}.",
+            "business_summary": f"Sector overview pending for {clean_sym}.",
             "is_rag_retrieved": False,
         }
