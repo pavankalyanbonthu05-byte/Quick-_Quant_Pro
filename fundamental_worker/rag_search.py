@@ -58,7 +58,7 @@ def prioritize_news_with_llm(raw_articles: list) -> list:
         return raw_articles[:5]
 
     try:
-        client = Groq(api_key=api_key)
+        client = Groq(api_key=api_key, timeout=2.5)
         headlines_text = "\n".join([f"{idx+1}. {art['title']} (Publisher: {art.get('publisher', 'N/A')})" for idx, art in enumerate(raw_articles[:10])])
 
         prompt = f"""You are a senior financial analyst. Evaluate the following market headlines and rank the top 5 most important, market-moving stories.

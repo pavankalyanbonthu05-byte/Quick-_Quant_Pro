@@ -8,8 +8,15 @@ CHROMA_PATH = os.path.join(
 )
 
 
+_CHROMA_CLIENT = None
+_CHROMA_COL = None
+
 def get_chroma_collection():
     """Initializes or connects to local ChromaDB with graceful embedding fallback and minimal RAM."""
+    global _CHROMA_CLIENT, _CHROMA_COL
+    if _CHROMA_COL is not None:
+        return _CHROMA_COL
+
     try:
         from chromadb.config import Settings
         from chromadb.api.types import EmbeddingFunction, Documents, Embeddings
@@ -28,15 +35,20 @@ def get_chroma_collection():
                     embeddings.append(vec.tolist())
                 return embeddings
 
-        client = chromadb.EphemeralClient(
+        _CHROMA_CLIENT = chromadb.EphemeralClient(
             settings=Settings(anonymized_telemetry=False, allow_reset=True)
         )
-        return client.get_or_create_collection(
+        _CHROMA_COL = _CHROMA_CLIENT.get_or_create_collection(
             name="company_histories", embedding_function=LightweightEmbedding()
         )
+        return _CHROMA_COL
     except Exception:
-        client = chromadb.Client()
-        return client.get_or_create_collection(name="company_histories")
+        try:
+            _CHROMA_CLIENT = chromadb.Client()
+            _CHROMA_COL = _CHROMA_CLIENT.get_or_create_collection(name="company_histories")
+            return _CHROMA_COL
+        except Exception:
+            return None
 
 
 def query_or_index_company_history(symbol: str) -> dict:
@@ -49,22 +61,23 @@ def query_or_index_company_history(symbol: str) -> dict:
     collection = get_chroma_collection()
 
     # 1. Try querying ChromaDB
-    try:
-        results = collection.get(ids=[f"profile_{symbol}"])
-        if (
-            results
-            and results.get("documents")
-            and len(results["documents"]) > 0
-        ):
-            doc = results["documents"][0]
-            meta = results["metadatas"][0] if results.get("metadatas") else {}
-            return {
-                "company_origin": doc,
-                "business_summary": meta.get("summary", doc[:300]),
-                "is_rag_retrieved": True,
-            }
-    except Exception as e:
-        print(f"ChromaDB lookup info: {e}")
+    if collection is not None:
+        try:
+            results = collection.get(ids=[f"profile_{symbol}"])
+            if (
+                results
+                and results.get("documents")
+                and len(results["documents"]) > 0
+            ):
+                doc = results["documents"][0]
+                meta = results["metadatas"][0] if results.get("metadatas") else {}
+                return {
+                    "company_origin": doc,
+                    "business_summary": meta.get("summary", doc[:300]),
+                    "is_rag_retrieved": True,
+                }
+        except Exception as e:
+            print(f"ChromaDB lookup info: {e}")
 
     # 2. Agentic RAG Fallback: Auto-fetch & Index on Demand
     print(
@@ -100,15 +113,19 @@ def query_or_index_company_history(symbol: str) -> dict:
         )
 
         # Store in ChromaDB
-        collection.add(
-            documents=[profile_text],
-            metadatas=[{
-                "symbol": symbol,
-                "sector": sector,
-                "summary": long_summary[:300],
-            }],
-            ids=[f"profile_{symbol}"],
-        )
+        if collection is not None:
+            try:
+                collection.add(
+                    documents=[profile_text],
+                    metadatas=[{
+                        "symbol": symbol,
+                        "sector": sector,
+                        "summary": long_summary[:300],
+                    }],
+                    ids=[f"profile_{symbol}"],
+                )
+            except Exception:
+                pass
 
         return {
             "company_origin": profile_text,

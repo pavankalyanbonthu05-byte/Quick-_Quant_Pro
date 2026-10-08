@@ -98,7 +98,7 @@ def get_investment_recommendation(symbol: str) -> dict:
 
     if HAS_GROQ and api_key:
         try:
-            client = Groq(api_key=api_key)
+            client = Groq(api_key=api_key, timeout=3.5)
             resp = client.chat.completions.create(
                 model="openai/gpt-oss-120b",
                 messages=[{"role": "user", "content": prompt}],

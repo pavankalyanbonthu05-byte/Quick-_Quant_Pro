@@ -93,7 +93,7 @@ def get_chat_response(
     print(f"\n🤖 [Robo] Query: '{message[:80]}' | Context: {context_text}")
 
     try:
-        client = Groq(api_key=api_key)
+        client = Groq(api_key=api_key, timeout=5.0)
         user_content = f"Market Context: {context_text}\n\nUser Question: {message}"
 
         # Attempt with Primary model (qwen/qwen3.8-27b), fallback to gpt-oss-120b
