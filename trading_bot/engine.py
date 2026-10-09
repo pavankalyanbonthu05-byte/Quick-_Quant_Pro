@@ -112,6 +112,31 @@ def evaluate_asset_signal(asset_key: str, mode: str, rr_ratio: float):
     }
 
 
+def compute_current_price(trade: dict, live: dict = None) -> float:
+    """Calculates the accurate live price of a trade contract.
+    For options (CE/PE), moves the premium according to the underlying asset's price change & delta (0.5),
+    preventing comparing option premium (~₹180) against index spot level (~₹55,000).
+    """
+    entry_p = trade.get("entry_price", 1.0)
+    if not live or live.get("price", 0) <= 0:
+        return entry_p
+
+    asset_name = trade.get("asset_name", "")
+    is_option = "CE" in asset_name or "PE" in asset_name
+
+    if is_option:
+        spot_pct = live.get("change_pct", 0.0) / 100.0
+        delta = 0.5
+        dir_mult = 1 if trade.get("direction") == "BUY" else -1
+        # For PE, positive spot move decreases option value, negative spot move increases option value
+        if "PE" in asset_name:
+            dir_mult = -dir_mult
+        estimated_premium = entry_p * (1.0 + (spot_pct * delta * dir_mult))
+        return max(1.0, round(estimated_premium, 2))
+    else:
+        return live["price"]
+
+
 def execute_algo_cycle(user_id: int):
     """Executes an algorithmic pass for a user's bot:
     1. Evaluates existing open trades for SL / TP hits with live real-time quotes.
@@ -137,18 +162,8 @@ def execute_algo_cycle(user_id: int):
 
     for trade in open_trades:
         asset_key = next((k for k, v in WATCHED_ASSETS.items() if v["symbol"] == trade["symbol"]), None)
-        current_price = trade["entry_price"]
-
-        if asset_key:
-            live = fetch_live_quote(asset_key)
-            if live and live["price"] > 0:
-                # If option/derivative trade, calculate simulated option delta move
-                if "CE" in trade["asset_name"] or "PE" in trade["asset_name"]:
-                    spot_pct = live["change_pct"] / 100.0
-                    delta = 0.5
-                    current_price = max(1.0, round(trade["entry_price"] * (1.0 + (spot_pct * delta * (1 if trade["direction"] == "BUY" else -1))), 2))
-                else:
-                    current_price = live["price"]
+        live = fetch_live_quote(asset_key) if asset_key else None
+        current_price = compute_current_price(trade, live)
 
         direction = trade["direction"]
         entry = trade["entry_price"]
@@ -295,13 +310,9 @@ def close_manual_position(user_id: int, trade_id: int):
         return {"success": False, "message": "Trade not found or already closed."}
 
     trade = dict(trade)
-    # Estimate current price
-    current_price = trade["entry_price"]
     asset_key = next((k for k, v in WATCHED_ASSETS.items() if v["symbol"] == trade["symbol"]), None)
-    if asset_key:
-        live = fetch_live_quote(asset_key)
-        if live and live["price"] > 0:
-            current_price = live["price"]
+    live = fetch_live_quote(asset_key) if asset_key else None
+    current_price = compute_current_price(trade, live)
 
     direction = trade["direction"]
     qty = trade["quantity"]
@@ -330,13 +341,9 @@ def get_enriched_bot_state(user_id: int):
 
     for t in open_trades:
         trade_copy = dict(t)
-        current_p = trade_copy["entry_price"]
         asset_key = next((k for k, v in WATCHED_ASSETS.items() if v["symbol"] == trade_copy["symbol"]), None)
-
-        if asset_key:
-            live = fetch_live_quote(asset_key)
-            if live and live["price"] > 0:
-                current_p = live["price"]
+        live = fetch_live_quote(asset_key) if asset_key else None
+        current_p = compute_current_price(trade_copy, live)
 
         qty = trade_copy["quantity"]
         dir_mult = 1 if trade_copy["direction"] == "BUY" else -1
