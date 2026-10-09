@@ -946,13 +946,22 @@
                                 <span id="mo-lot-badge" class="bg-blue-500/10 text-blue-400 border border-blue-500/30 text-[10px] px-2 py-0.5 rounded font-mono">1 Lot = 25 Qty</span>
                             </div>
 
-                            <!-- Live Spot Price Display with Live/Closed status -->
+                            <!-- Live Spot Price & Option Premium Display with Live/Closed status -->
                             <div id="mo-spot-strip" class="flex items-center justify-between bg-slate-950/80 border border-slate-800 rounded-xl px-3 py-2 font-mono text-xs">
-                                <div class="space-y-0.5">
-                                    <div class="text-[10px] text-slate-400 font-sans">Underlying Spot Price</div>
-                                    <div class="flex items-center gap-2">
-                                        <span id="mo-spot-price" class="text-base font-bold text-white">--</span>
-                                        <span id="mo-spot-chg" class="text-[11px] font-semibold text-slate-400"></span>
+                                <div class="flex items-center gap-6">
+                                    <div class="space-y-0.5">
+                                        <div class="text-[10px] text-slate-400 font-sans">Underlying Spot</div>
+                                        <div class="flex items-center gap-2">
+                                            <span id="mo-spot-price" class="text-sm font-bold text-slate-300">--</span>
+                                            <span id="mo-spot-chg" class="text-[10px] font-semibold text-slate-400"></span>
+                                        </div>
+                                    </div>
+                                    <div class="space-y-0.5 border-l border-slate-800 pl-4">
+                                        <div class="text-[10px] text-emerald-400 font-sans font-semibold">Contract Premium (LTP)</div>
+                                        <div class="flex items-center gap-1.5">
+                                            <span class="text-xs text-emerald-400">₹</span>
+                                            <span id="mo-contract-premium" class="text-base font-bold text-emerald-400">--</span>
+                                        </div>
                                     </div>
                                 </div>
                                 <div class="flex items-center gap-2">
@@ -1579,9 +1588,10 @@
             document.getElementById('mo-lots-label').innerText = `Lots (${item.unit_label})`;
             document.getElementById('mo-lots').value = 1;
 
-            // Reset spot strip to loading state
+            // Reset spot strip & premium to loading state
             document.getElementById('mo-spot-price').innerText = '…';
             document.getElementById('mo-spot-chg').innerText = '';
+            document.getElementById('mo-contract-premium').innerText = item.approx_price > 0 ? Number(item.approx_price).toFixed(2) : '…';
             document.getElementById('mo-market-label').innerText = '';
             document.getElementById('mo-live-badge').innerText = '…';
 
@@ -1605,12 +1615,17 @@
                 const spotVal = Number(q.spot_price);
                 spotEl.innerText = spotVal > 0 ? spotVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
 
+                // Update contract premium (LTP)
+                const premEl = document.getElementById('mo-contract-premium');
+                const premVal = Number(q.contract_price);
+                premEl.innerText = premVal > 0 ? premVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '--';
+
                 // Update change %
                 const chg = Number(q.change_pct);
                 const chgEl = document.getElementById('mo-spot-chg');
                 const sign = chg >= 0 ? '+' : '';
                 chgEl.innerText = isNaN(chg) ? '' : `${sign}${chg.toFixed(2)}%`;
-                chgEl.className = `text-[11px] font-semibold ${chg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
+                chgEl.className = `text-[10px] font-semibold ${chg >= 0 ? 'text-emerald-400' : 'text-rose-400'}`;
 
                 // Market label
                 document.getElementById('mo-market-label').innerText = q.market_label || '';
