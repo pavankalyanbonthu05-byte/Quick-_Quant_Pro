@@ -22,7 +22,8 @@ from .engine import (
     evaluate_asset_signal,
     execute_manual_paper_trade,
     close_manual_position,
-    get_enriched_bot_state
+    get_enriched_bot_state,
+    cancel_pending_order
 )
 
 __all__ = [
@@ -42,6 +43,7 @@ __all__ = [
     "execute_manual_paper_trade",
     "close_manual_position",
     "get_enriched_bot_state",
+    "cancel_pending_order",
     "is_indian_market_open",
     "is_us_market_open",
     "INDIAN_LOT_SIZES",

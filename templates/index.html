@@ -970,7 +970,14 @@
                                 </div>
                             </div>
 
-                            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                                <div>
+                                    <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Order Type</label>
+                                    <select id="mo-order-type" onchange="onOrderTypeChange(this.value)" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white">
+                                        <option value="MARKET">MARKET</option>
+                                        <option value="LIMIT">LIMIT</option>
+                                    </select>
+                                </div>
                                 <div>
                                     <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Direction</label>
                                     <select id="mo-direction" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white">
@@ -979,7 +986,7 @@
                                     </select>
                                 </div>
                                 <div>
-                                    <label class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Entry Price</label>
+                                    <label id="mo-price-label" class="block text-[10px] text-slate-400 uppercase font-sans mb-1">Market Price</label>
                                     <input type="number" id="mo-price" step="0.05" oninput="this.dataset.userEdited='true'" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-2.5 py-1.5 text-white">
                                 </div>
                                 <div>
@@ -1400,36 +1407,49 @@
                     }).join('');
                 }
 
-                // Render Active Open Positions with Live Floating P&L and Close Action
+                // Render Active Open Positions with Live Floating P&L and Close/Cancel Action
                 const openTbody = document.getElementById('open-positions-tbody');
                 if (bot.open_trades.length === 0) {
                     openTbody.innerHTML = `<tr><td colspan="9" class="p-4 text-center text-slate-500 font-sans text-xs">No active positions open. Autonomous scanner active.</td></tr>`;
                 } else {
                     openTbody.innerHTML = bot.open_trades.map(t => {
+                        const isPending = t.status === 'PENDING';
                         const dirBadge = t.direction === 'BUY'
                             ? `<span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">BUY</span>`
                             : `<span class="bg-rose-500/10 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold">SELL</span>`;
                         
+                        const statusBadge = isPending
+                            ? `<span class="ml-1.5 bg-amber-500/15 text-amber-400 border border-amber-500/30 px-1.5 py-0.5 rounded text-[9px] font-bold font-mono">PENDING</span>`
+                            : '';
+
                         const floatPnl = Number(t.floating_pnl || 0.0);
                         const floatPnlPct = Number(t.floating_pnl_pct || 0.0);
                         const pnlColor = floatPnl >= 0 ? 'text-emerald-400' : 'text-rose-400';
                         const sign = floatPnl >= 0 ? '+' : '';
 
+                        const pnlDisplay = isPending
+                            ? `<span class="text-slate-500 font-normal">--</span>`
+                            : `<span class="${pnlColor} font-bold">${sign}${floatPnl.toFixed(2)} <span class="text-[10px] font-normal">(${sign}${floatPnlPct.toFixed(2)}%)</span></span>`;
+
+                        const actionBtn = isPending
+                            ? `<button onclick="cancelPendingLimitOrder(${t.id})" class="px-2.5 py-1 rounded bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[10px] font-semibold transition-colors">
+                                  <i class="fa-solid fa-xmark mr-1"></i>Cancel
+                               </button>`
+                            : `<button onclick="closePosition(${t.id})" class="px-2.5 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] transition-colors">
+                                  Close
+                               </button>`;
+
                         return `
                             <tr class="hover:bg-slate-900/50 transition-colors">
-                                <td class="p-3 text-white font-bold">${t.asset_name}</td>
+                                <td class="p-3 text-white font-bold flex items-center">${t.asset_name} ${statusBadge}</td>
                                 <td class="p-3">${dirBadge}</td>
                                 <td class="p-3 text-slate-300">${Number(t.entry_price).toFixed(2)}</td>
                                 <td class="p-3 text-white font-semibold">${Number(t.current_price || t.entry_price).toFixed(2)}</td>
                                 <td class="p-3 text-rose-400">${Number(t.stop_loss).toFixed(2)}</td>
                                 <td class="p-3 text-emerald-400">${Number(t.take_profit).toFixed(2)}</td>
                                 <td class="p-3 text-slate-400">${t.quantity}</td>
-                                <td class="p-3 ${pnlColor} font-bold">${sign}${floatPnl.toFixed(2)} <span class="text-[10px] font-normal">(${sign}${floatPnlPct.toFixed(2)}%)</span></td>
-                                <td class="p-3">
-                                    <button onclick="closePosition(${t.id})" class="px-2 py-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[10px] transition-colors">
-                                        Close
-                                    </button>
-                                </td>
+                                <td class="p-3">${pnlDisplay}</td>
+                                <td class="p-3">${actionBtn}</td>
                             </tr>
                         `;
                     }).join('');
@@ -1437,7 +1457,7 @@
 
                 // Render Algorithmic Trade Log with Detailed Reasoning
                 const logTbody = document.getElementById('trade-log-tbody');
-                const closedTrades = bot.all_trades.filter(t => t.status !== 'OPEN');
+                const closedTrades = bot.all_trades.filter(t => t.status !== 'OPEN' && t.status !== 'PENDING');
                 if (closedTrades.length === 0) {
                     logTbody.innerHTML = `<tr><td colspan="8" class="p-4 text-center text-slate-500 font-sans text-xs">No closed trades yet. Live triggers will be archived here.</td></tr>`;
                 } else {
@@ -1451,6 +1471,8 @@
                             resBadge = `<span class="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">TARGET HIT</span>`;
                         } else if (t.status === 'STOPPED_OUT') {
                             resBadge = `<span class="bg-rose-500/15 text-rose-400 border border-rose-500/30 px-2 py-0.5 rounded text-[10px] font-bold">STOPPED OUT</span>`;
+                        } else if (t.status === 'CANCELLED') {
+                            resBadge = `<span class="bg-slate-800 text-slate-400 border border-slate-700 px-2 py-0.5 rounded text-[10px] font-mono">CANCELLED</span>`;
                         } else {
                             resBadge = `<span class="bg-slate-800 text-slate-400 px-2 py-0.5 rounded text-[10px]">MANUAL CLOSE</span>`;
                         }
@@ -1640,13 +1662,32 @@
                     liveBadge.className = 'text-[10px] font-bold px-2 py-0.5 rounded-full border bg-rose-500/10 text-rose-400 border-rose-500/30';
                 }
 
-                // Auto-fill entry price only if user hasn't manually edited it
+                // Auto-fill entry price only if order type is MARKET and user hasn't manually edited it
+                const orderType = document.getElementById('mo-order-type')?.value || 'MARKET';
                 const priceInput = document.getElementById('mo-price');
-                if (!priceInput.dataset.userEdited && q.contract_price > 0) {
+                if (orderType === 'MARKET' && !priceInput.dataset.userEdited && q.contract_price > 0) {
                     priceInput.value = q.contract_price;
                 }
             } catch (e) {
                 console.error('Spot quote error:', e);
+            }
+        }
+
+        function onOrderTypeChange(type) {
+            const priceLabel = document.getElementById('mo-price-label');
+            const priceInput = document.getElementById('mo-price');
+            if (type === 'LIMIT') {
+                priceLabel.innerText = "Desired Limit Price";
+                priceInput.placeholder = "Enter trigger price";
+                priceInput.dataset.userEdited = 'true';
+            } else {
+                priceLabel.innerText = "Market Price";
+                priceInput.placeholder = "";
+                delete priceInput.dataset.userEdited;
+                const premEl = document.getElementById('mo-contract-premium');
+                if (premEl && premEl.innerText !== '--' && premEl.innerText !== '…') {
+                    priceInput.value = parseFloat(premEl.innerText.replace(/,/g, ''));
+                }
             }
         }
 
@@ -1659,12 +1700,18 @@
 
         async function submitManualPaperTrade() {
             if (!selectedManualInstrument) return;
+            const orderType = document.getElementById('mo-order-type')?.value || 'MARKET';
             const dir = document.getElementById('mo-direction').value;
             const price = parseFloat(document.getElementById('mo-price').value);
             const lots = parseInt(document.getElementById('mo-lots').value) || 1;
             const lotSize = selectedManualInstrument.lot_size || 1;
             const sl = parseFloat(document.getElementById('mo-sl').value) || 0.0;
             const tp = parseFloat(document.getElementById('mo-tp').value) || 0.0;
+
+            if (isNaN(price) || price <= 0) {
+                alert("Please enter a valid price.");
+                return;
+            }
 
             try {
                 const res = await fetch('/api/bot/manual_trade', {
@@ -1678,7 +1725,8 @@
                         lots: lots,
                         lot_size: lotSize,
                         stop_loss: sl,
-                        take_profit: tp
+                        take_profit: tp,
+                        order_type: orderType
                     })
                 });
                 const data = await res.json();
@@ -1693,6 +1741,26 @@
                 }
             } catch (err) {
                 console.error("Trade submit error:", err);
+            }
+        }
+
+        async function cancelPendingLimitOrder(tradeId) {
+            if (confirm("Cancel this pending limit order?")) {
+                try {
+                    const res = await fetch('/api/bot/cancel_order', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ trade_id: tradeId })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        loadBotState();
+                    } else {
+                        alert(data.message || "Failed to cancel order.");
+                    }
+                } catch (e) {
+                    console.error("Cancel order error:", e);
+                }
             }
         }
 

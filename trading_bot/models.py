@@ -132,8 +132,8 @@ def get_user_bot(user_id: int):
     trades = [dict(t) for t in cursor.fetchall()]
 
     # Calculate live open positions P&L and total closed P&L
-    closed_pnl = sum([t["pnl"] for t in trades if t["status"] != "OPEN"])
-    open_trades = [t for t in trades if t["status"] == "OPEN"]
+    closed_pnl = sum([t["pnl"] for t in trades if t["status"] not in ("OPEN", "PENDING")])
+    open_trades = [t for t in trades if t["status"] in ("OPEN", "PENDING")]
 
     conn.close()
     return {

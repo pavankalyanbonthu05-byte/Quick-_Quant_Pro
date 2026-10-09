@@ -3,7 +3,7 @@ import random
 import math
 from datetime import datetime
 from .models import get_db_connection, get_user_bot
-from .market_data import fetch_live_quote, WATCHED_ASSETS, resolve_instrument_lot_size
+from .market_data import fetch_live_quote, WATCHED_ASSETS, resolve_instrument_lot_size, get_instrument_live_quote
 
 
 def evaluate_asset_signal(asset_key: str, mode: str, rr_ratio: float):
@@ -114,27 +114,41 @@ def evaluate_asset_signal(asset_key: str, mode: str, rr_ratio: float):
 
 def compute_current_price(trade: dict, live: dict = None) -> float:
     """Calculates the accurate live price of a trade contract.
-    For options (CE/PE), moves the premium according to the underlying asset's price change & delta (0.5),
-    preventing comparing option premium (~₹180) against index spot level (~₹55,000).
+    For options (CE/PE) or custom search instruments, fetches their direct live quote / Black-Scholes premium
+    via get_instrument_live_quote so the floating P&L updates dynamically in real-time.
     """
-    entry_p = trade.get("entry_price", 1.0)
-    if not live or live.get("price", 0) <= 0:
-        return entry_p
+    sym = trade.get("symbol", "")
+    asset_name = trade.get("asset_name", sym)
+    entry_p = float(trade.get("entry_price", 1.0))
 
-    asset_name = trade.get("asset_name", "")
-    is_option = "CE" in asset_name or "PE" in asset_name
+    is_option = "CE" in sym or "PE" in sym or "CE" in asset_name or "PE" in asset_name
+    asset_key = next((k for k, v in WATCHED_ASSETS.items() if v["symbol"] == sym), None)
 
-    if is_option:
-        spot_pct = live.get("change_pct", 0.0) / 100.0
-        delta = 0.5
-        dir_mult = 1 if trade.get("direction") == "BUY" else -1
-        # For PE, positive spot move decreases option value, negative spot move increases option value
-        if "PE" in asset_name:
-            dir_mult = -dir_mult
-        estimated_premium = entry_p * (1.0 + (spot_pct * delta * dir_mult))
-        return max(1.0, round(estimated_premium, 2))
-    else:
-        return live["price"]
+    # If it is an option or not in the 4 root watched index keys, query get_instrument_live_quote
+    if is_option or not asset_key:
+        try:
+            inst_quote = get_instrument_live_quote(sym, asset_name)
+            if inst_quote:
+                c_price = inst_quote.get("contract_price") or inst_quote.get("spot_price")
+                if c_price and float(c_price) > 0:
+                    return round(float(c_price), 2)
+        except Exception:
+            pass
+
+    # Fallback to watched asset live quote if available
+    if live and live.get("price", 0) > 0:
+        if is_option:
+            spot_pct = live.get("change_pct", 0.0) / 100.0
+            delta = 0.5
+            dir_mult = 1 if trade.get("direction") == "BUY" else -1
+            if "PE" in sym or "PE" in asset_name:
+                dir_mult = -dir_mult
+            estimated_premium = entry_p * (1.0 + (spot_pct * delta * dir_mult))
+            return max(0.5, round(estimated_premium, 2))
+        else:
+            return round(float(live["price"]), 2)
+
+    return entry_p
 
 
 def execute_algo_cycle(user_id: int):
@@ -156,7 +170,29 @@ def execute_algo_cycle(user_id: int):
     risk_pct = bot_info["risk_pct"]
     rr_ratio = bot_info["rr_ratio"]
 
-    # Step 1: Manage Open Trades against live quotes
+    # Step 1a: Check and execute any PENDING limit orders when price condition is met
+    cursor.execute("SELECT * FROM trades WHERE user_id = ? AND status = 'PENDING'", (user_id,))
+    pending_trades = [dict(t) for t in cursor.fetchall()]
+
+    for ptrade in pending_trades:
+        asset_key = next((k for k, v in WATCHED_ASSETS.items() if v["symbol"] == ptrade["symbol"]), None)
+        live = fetch_live_quote(asset_key) if asset_key else None
+        current_p = compute_current_price(ptrade, live)
+        dir_p = ptrade["direction"]
+        limit_p = ptrade["entry_price"]
+
+        # BUY LIMIT fills when current market price <= limit price
+        # SELL LIMIT fills when current market price >= limit price
+        is_triggered = (dir_p == "BUY" and current_p <= limit_p) or (dir_p == "SELL" and current_p >= limit_p)
+        if is_triggered:
+            cursor.execute("""
+                UPDATE trades 
+                SET status = 'OPEN', opened_at = CURRENT_TIMESTAMP, 
+                    reason = reason || ' [Limit Order Executed at ' || ? || ']'
+                WHERE id = ?
+            """, (current_p, ptrade["id"]))
+
+    # Step 1b: Manage Open Trades against live quotes
     cursor.execute("SELECT * FROM trades WHERE user_id = ? AND status = 'OPEN'", (user_id,))
     open_trades = [dict(t) for t in cursor.fetchall()]
 
@@ -257,8 +293,8 @@ def execute_algo_cycle(user_id: int):
     return get_enriched_bot_state(user_id)
 
 
-def execute_manual_paper_trade(user_id: int, symbol: str, asset_name: str, direction: str, entry_price: float, quantity: float, stop_loss: float = 0.0, take_profit: float = 0.0, reason: str = ""):
-    """Executes a manual paper trade entered by the user, updating the shared 100k balance."""
+def execute_manual_paper_trade(user_id: int, symbol: str, asset_name: str, direction: str, entry_price: float, quantity: float, stop_loss: float = 0.0, take_profit: float = 0.0, reason: str = "", order_type: str = "MARKET"):
+    """Executes a manual paper trade entered by the user, supporting both MARKET and LIMIT order types."""
     bot_info = get_user_bot(user_id)
     if not bot_info:
         return {"success": False, "message": "Bot profile not found."}
@@ -268,35 +304,79 @@ def execute_manual_paper_trade(user_id: int, symbol: str, asset_name: str, direc
     if order_val > balance * 3:  # Allow 3x leverage
         return {"success": False, "message": f"Insufficient margin. Required: {round(order_val, 2)}, Balance: {round(balance, 2)}"}
 
+    direction_up = direction.upper()
+    order_type_up = order_type.upper() if order_type else "MARKET"
+
+    # For LIMIT orders: check if current market price already satisfies the limit
+    initial_status = "OPEN"
+    if order_type_up == "LIMIT":
+        # Check current market price
+        temp_trade = {"symbol": symbol, "asset_name": asset_name, "entry_price": entry_price, "direction": direction_up}
+        cur_price = compute_current_price(temp_trade)
+        
+        # BUY LIMIT fills if market <= limit; SELL LIMIT fills if market >= limit
+        if direction_up == "BUY" and cur_price > entry_price:
+            initial_status = "PENDING"
+        elif direction_up == "SELL" and cur_price < entry_price:
+            initial_status = "PENDING"
+        else:
+            initial_status = "OPEN"
+
     if not reason:
-        reason = f"Manual Paper Execution: {direction} {quantity} units of {asset_name} @ {entry_price}."
+        if order_type_up == "LIMIT":
+            reason = f"Limit Order: {direction_up} {quantity} units of {asset_name} @ limit price {entry_price}."
+        else:
+            reason = f"Market Execution: {direction_up} {quantity} units of {asset_name} @ {entry_price}."
 
     if stop_loss == 0.0:
-        stop_loss = round(entry_price * (0.98 if direction == "BUY" else 1.02), 2)
+        stop_loss = round(entry_price * (0.98 if direction_up == "BUY" else 1.02), 2)
     if take_profit == 0.0:
-        take_profit = round(entry_price * (1.04 if direction == "BUY" else 0.96), 2)
+        take_profit = round(entry_price * (1.04 if direction_up == "BUY" else 0.96), 2)
 
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute("""
         INSERT INTO trades 
         (user_id, symbol, asset_name, direction, entry_price, quantity, stop_loss, take_profit, reason, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'OPEN')
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         user_id,
         symbol,
         asset_name,
-        direction.upper(),
+        direction_up,
         entry_price,
         quantity,
         stop_loss,
         take_profit,
-        reason
+        reason,
+        initial_status
     ))
     conn.commit()
     conn.close()
 
-    return {"success": True, "bot": get_enriched_bot_state(user_id)}
+    msg = "Limit order placed (PENDING execution)" if initial_status == "PENDING" else "Order executed successfully."
+    return {"success": True, "message": msg, "order_status": initial_status, "bot": get_enriched_bot_state(user_id)}
+
+
+def cancel_pending_order(user_id: int, trade_id: int):
+    """Cancels a pending limit order before execution."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM trades WHERE id = ? AND user_id = ? AND status = 'PENDING'", (trade_id, user_id))
+    trade = cursor.fetchone()
+    if not trade:
+        conn.close()
+        return {"success": False, "message": "Pending order not found or already executed/cancelled."}
+
+    cursor.execute("""
+        UPDATE trades 
+        SET status = 'CANCELLED', closed_at = CURRENT_TIMESTAMP
+        WHERE id = ?
+    """, (trade_id,))
+    conn.commit()
+    conn.close()
+
+    return {"success": True, "message": "Pending limit order cancelled.", "bot": get_enriched_bot_state(user_id)}
 
 
 def close_manual_position(user_id: int, trade_id: int):
@@ -332,7 +412,32 @@ def close_manual_position(user_id: int, trade_id: int):
 
 
 def get_enriched_bot_state(user_id: int):
-    """Fetches bot state and computes real-time floating profit/loss for every active open trade."""
+    """Fetches bot state and computes real-time floating profit/loss for every active open trade,
+    as well as checking whether pending limit orders should trigger."""
+    # First, quickly check and fill pending limit orders if market price reached them
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM trades WHERE user_id = ? AND status = 'PENDING'", (user_id,))
+    pending_list = [dict(t) for t in cursor.fetchall()]
+
+    for ptrade in pending_list:
+        asset_key = next((k for k, v in WATCHED_ASSETS.items() if v["symbol"] == ptrade["symbol"]), None)
+        live = fetch_live_quote(asset_key) if asset_key else None
+        current_p = compute_current_price(ptrade, live)
+        dir_p = ptrade["direction"]
+        limit_p = ptrade["entry_price"]
+
+        is_triggered = (dir_p == "BUY" and current_p <= limit_p) or (dir_p == "SELL" and current_p >= limit_p)
+        if is_triggered:
+            cursor.execute("""
+                UPDATE trades 
+                SET status = 'OPEN', opened_at = CURRENT_TIMESTAMP,
+                    reason = reason || ' [Limit Order Executed at ' || ? || ']'
+                WHERE id = ?
+            """, (current_p, ptrade["id"]))
+    conn.commit()
+    conn.close()
+
     base = get_user_bot(user_id)
     open_trades = base.get("open_trades", [])
 
@@ -345,16 +450,22 @@ def get_enriched_bot_state(user_id: int):
         live = fetch_live_quote(asset_key) if asset_key else None
         current_p = compute_current_price(trade_copy, live)
 
-        qty = trade_copy["quantity"]
-        dir_mult = 1 if trade_copy["direction"] == "BUY" else -1
-        float_pnl = round((current_p - trade_copy["entry_price"]) * qty * dir_mult, 2)
-        float_pnl_pct = round(((current_p - trade_copy["entry_price"]) / trade_copy["entry_price"]) * 100 * dir_mult, 2)
+        if trade_copy.get("status") == "PENDING":
+            trade_copy["current_price"] = current_p
+            trade_copy["floating_pnl"] = 0.0
+            trade_copy["floating_pnl_pct"] = 0.0
+        else:
+            qty = trade_copy["quantity"]
+            dir_mult = 1 if trade_copy["direction"] == "BUY" else -1
+            float_pnl = round((current_p - trade_copy["entry_price"]) * qty * dir_mult, 2)
+            float_pnl_pct = round(((current_p - trade_copy["entry_price"]) / max(0.01, trade_copy["entry_price"])) * 100 * dir_mult, 2)
 
-        trade_copy["current_price"] = current_p
-        trade_copy["floating_pnl"] = float_pnl
-        trade_copy["floating_pnl_pct"] = float_pnl_pct
+            trade_copy["current_price"] = current_p
+            trade_copy["floating_pnl"] = float_pnl
+            trade_copy["floating_pnl_pct"] = float_pnl_pct
 
-        total_floating_pnl += float_pnl
+            total_floating_pnl += float_pnl
+
         enriched_open_trades.append(trade_copy)
 
     base["open_trades"] = enriched_open_trades

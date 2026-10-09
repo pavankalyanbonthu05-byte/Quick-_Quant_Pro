@@ -43,6 +43,7 @@ try:
         execute_algo_cycle,
         execute_manual_paper_trade,
         close_manual_position,
+        cancel_pending_order,
         get_all_live_prices,
         search_tradingview_instruments,
         get_instrument_live_quote,
@@ -432,7 +433,8 @@ def api_bot_manual_trade():
     quantity = lots * lot_size
     stop_loss = float(data.get("stop_loss", 0.0))
     take_profit = float(data.get("take_profit", 0.0))
-    reason = data.get("reason", f"Manual paper execution: {direction} {lots} lot(s) ({quantity} qty) of {asset_name} @ {entry_price}")
+    order_type = data.get("order_type", "MARKET").upper()
+    reason = data.get("reason", "")
 
     res = execute_manual_paper_trade(
         user_id=user_id,
@@ -443,8 +445,25 @@ def api_bot_manual_trade():
         quantity=quantity,
         stop_loss=stop_loss,
         take_profit=take_profit,
-        reason=reason
+        reason=reason,
+        order_type=order_type
     )
+    return jsonify(res)
+
+
+@app.route("/api/bot/cancel_order", methods=["POST"])
+def api_bot_cancel_order():
+    """Cancels a pending limit order before execution."""
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"success": False, "message": "Not authenticated."}), 401
+
+    data = request.get_json() or {}
+    trade_id = data.get("trade_id")
+    if not trade_id:
+        return jsonify({"success": False, "message": "trade_id required."})
+
+    res = cancel_pending_order(user_id, int(trade_id))
     return jsonify(res)
 
 
